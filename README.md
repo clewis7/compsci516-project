@@ -12,3 +12,13 @@ python -m http.server 8000
 ```
 
 Can then see rendered version of website at: http://localhost:8000
+
+## Load dataset into MySQL (Docker)
+
+We provide a helper script to start a MySQL 8 container and load our SQL dump.
+
+### 1) Make the script executable and run the loader
+```bash
+chmod +x scripts/load_mysql_docker.sh
+
+./scripts/load_mysql_docker.sh data/book_data.sql
