@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>betterreads</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Welcome to betterreads</h1>
+
+      <div class="search-layout">
+        <label for="searchInput" class="search-label">Search:</label>
+
+        <div class="search-controls">
+          <input id="searchInput" type="text" />
+
+          <div class="radio-row">
+            <label>
+              <input type="radio" name="searchField" value="title" checked />
+              Title
+            </label>
+
+            <label>
+              <input type="radio" name="searchField" value="author" />
+              Author
+            </label>
+
+            <label>
+              <input type="radio" name="searchField" value="genre" />
+              Genre
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <ul id="results"></ul>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

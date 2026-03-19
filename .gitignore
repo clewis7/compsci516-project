@@ -1,0 +1,17 @@
+# Node dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables (VERY important)
+.env
+
+# OS junk
+.DS_Store
+
+# Optional: build output (if you add one later)
+dist/
+build/

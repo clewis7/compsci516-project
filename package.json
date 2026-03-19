@@ -1,0 +1,22 @@
+{
+  "name": "compsci516-project",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "db": "./scripts/load_mysql_docker.sh ./data/book_data.sql",
+    "db:reset": "docker rm -f books-mysql || true && ./scripts/load_mysql_docker.sh ./data/book_data.sql",
+    "start": "npm run db && node server.js"
+  },
+  "description": "Class project for Duke COMPSCI 516",
+  "main": "index.js",
+  "keywords": [
+    "betterreads"
+  ],
+  "author": "Caitlin Lewis, Ting Zhou, Yurui Wu, Jingyi Zhou",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mysql2": "^3.20.0"
+  }
+}
