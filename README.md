@@ -42,13 +42,9 @@ npm start
 http://localhost:3000
 ```
 
-To serve locally:
+Can then see rendered version of website at: http://localhost:3000
 
-```bash
-python -m http.server 8000
-```
-
-Can then see rendered version of website at: http://localhost:8000
+----------------------------------------------------------------------
 
 ## Load dataset into MySQL (Docker)
 
