@@ -33,7 +33,10 @@ async function searchBooks() {
 
     books.forEach((book) => {
       const li = document.createElement("li");
-      li.textContent = `${book.title} by ${book.author}`;
+      const a = document.createElement("a");
+      a.href = `book.html?id=${book.book_id}`;
+      a.textContent = `${book.title} by ${book.author}`;
+      li.appendChild(a);
       resultsEl.appendChild(li);
     });
   } catch (error) {

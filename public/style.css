@@ -76,3 +76,237 @@ h1 {
   padding: 12px;
   margin-bottom: 10px;
 }
+
+#results li a {
+  text-decoration: none;
+  color: #2a5db0;
+  font-size: 18px;
+}
+
+#results li a:hover {
+  text-decoration: underline;
+}
+
+/* ── Book Detail Page ── */
+
+.back-link {
+  align-self: flex-start;
+  margin: 10px 0 20px 40px;
+  font-size: 18px;
+  color: #2a5db0;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.book-detail {
+  width: 900px;
+  max-width: 95%;
+}
+
+.book-layout {
+  display: flex;
+  gap: 30px;
+  background: white;
+  border: 1px solid #ccc;
+  padding: 30px;
+  border-radius: 8px;
+}
+
+.book-cover img {
+  width: 200px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.no-cover {
+  width: 200px;
+  height: 300px;
+  background: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #888;
+  font-size: 16px;
+}
+
+.book-info h1 {
+  font-size: 28px;
+  margin: 0 0 5px 0;
+}
+
+.book-info h2 {
+  font-size: 20px;
+  font-weight: normal;
+  color: #555;
+  margin: 0 0 15px 0;
+}
+
+.book-meta {
+  display: flex;
+  gap: 15px;
+  color: #777;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.genre {
+  background: #e8f0fe;
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: #2a5db0;
+}
+
+.book-rating {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.book-genres {
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.book-description {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* ── Star Rating ── */
+
+.rate-section {
+  margin-top: 20px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.rate-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+}
+
+.star-rating {
+  display: flex;
+  gap: 5px;
+}
+
+.star {
+  font-size: 36px;
+  color: #ccc;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.star:hover,
+.star.active {
+  color: #f5a623;
+}
+
+/* ── Action Buttons (Read / Want-to-Read) ── */
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.action-btn {
+  padding: 10px 20px;
+  font-size: 15px;
+  border: 2px solid #2a5db0;
+  background: white;
+  color: #2a5db0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #e8f0fe;
+}
+
+.action-btn.active-btn {
+  background: #2a5db0;
+  color: white;
+}
+
+#status-message {
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* ── Recommendations ── */
+
+.recommendations-section {
+  margin-top: 30px;
+}
+
+.recommendations-section h3 {
+  font-size: 22px;
+  margin-bottom: 15px;
+}
+
+.recommendations-grid {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+}
+
+.rec-card {
+  flex: 0 0 150px;
+  text-decoration: none;
+  color: #333;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  transition: box-shadow 0.2s;
+}
+
+.rec-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.rec-card img {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.no-cover-small {
+  width: 120px;
+  height: 180px;
+  background: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #888;
+  font-size: 13px;
+}
+
+.rec-title {
+  font-size: 13px;
+  font-weight: bold;
+  margin: 8px 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rec-author {
+  font-size: 12px;
+  color: #777;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
