@@ -13,6 +13,7 @@ const pool = mysql.createPool({
   database: "books",
 });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/search", async (req, res) => {
@@ -59,6 +60,295 @@ app.get("/api/search", async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error("Search error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Book Detail: GET /api/book/:id ──
+app.get("/api/book/:id", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+
+    // Get book info
+    const [books] = await pool.execute(
+      `SELECT book_id, title, author, isbn, average_rating, description,
+              cover_image_url, primary_genre, pages
+       FROM books WHERE book_id = ?`,
+      [bookId]
+    );
+
+    if (books.length === 0) {
+      return res.status(404).json({ error: "Book not found" });
+    }
+
+    // Get all genres for this book
+    const [genres] = await pool.execute(
+      `SELECT g.genre_name
+       FROM genres g
+       JOIN book_genres bg ON g.genre_id = bg.genre_id
+       JOIN books b ON b.hardcover_id = bg.hardcover_id
+       WHERE b.book_id = ?`,
+      [bookId]
+    );
+
+    const book = books[0];
+    book.genres = genres.map((g) => g.genre_name);
+
+    res.json(book);
+  } catch (error) {
+    console.error("Book detail error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Rate a Book: POST /api/rate ──
+app.post("/api/rate", async (req, res) => {
+  try {
+    const { uid, book_id, rating } = req.body;
+
+    if (!uid || !book_id || !rating) {
+      return res.status(400).json({ error: "uid, book_id, and rating are required" });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Insert or update the rating
+      await conn.execute(
+        `INSERT INTO ratings (uid, book_id, rating)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE rating = ?`,
+        [uid, book_id, rating, rating]
+      );
+
+      // Automatically add to read_books list
+      await conn.execute(
+        `INSERT IGNORE INTO read_books (uid, book_id) VALUES (?, ?)`,
+        [uid, book_id]
+      );
+
+      // Remove from want_to_read if it exists (book can't be in both lists)
+      await conn.execute(
+        `DELETE FROM want_to_read WHERE uid = ? AND book_id = ?`,
+        [uid, book_id]
+      );
+
+      await conn.commit();
+      res.json({ message: "Rating saved", rating });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error("Rating error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Get ratings for a book: GET /api/book/:id/ratings ──
+app.get("/api/book/:id/ratings", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+
+    const [rows] = await pool.execute(
+      `SELECT AVG(rating) AS avg_rating, COUNT(*) AS num_ratings
+       FROM ratings WHERE book_id = ?`,
+      [bookId]
+    );
+
+    res.json({
+      avg_rating: rows[0].avg_rating ? parseFloat(rows[0].avg_rating).toFixed(2) : null,
+      num_ratings: rows[0].num_ratings,
+    });
+  } catch (error) {
+    console.error("Get ratings error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Mark a book as read: POST /api/mark-read ──
+app.post("/api/mark-read", async (req, res) => {
+  try {
+    const { uid, book_id } = req.body;
+
+    if (!uid || !book_id) {
+      return res.status(400).json({ error: "uid and book_id are required" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Add to read_books
+      await conn.execute(
+        `INSERT IGNORE INTO read_books (uid, book_id) VALUES (?, ?)`,
+        [uid, book_id]
+      );
+
+      // Remove from want_to_read (can't be in both)
+      await conn.execute(
+        `DELETE FROM want_to_read WHERE uid = ? AND book_id = ?`,
+        [uid, book_id]
+      );
+
+      await conn.commit();
+      res.json({ message: "Book marked as read" });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error("Mark read error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Mark a book as want-to-read: POST /api/mark-want-to-read ──
+app.post("/api/mark-want-to-read", async (req, res) => {
+  try {
+    const { uid, book_id } = req.body;
+
+    if (!uid || !book_id) {
+      return res.status(400).json({ error: "uid and book_id are required" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Add to want_to_read
+      await conn.execute(
+        `INSERT IGNORE INTO want_to_read (uid, book_id) VALUES (?, ?)`,
+        [uid, book_id]
+      );
+
+      // Remove from read_books (can't be in both)
+      await conn.execute(
+        `DELETE FROM read_books WHERE uid = ? AND book_id = ?`,
+        [uid, book_id]
+      );
+
+      await conn.commit();
+      res.json({ message: "Book marked as want-to-read" });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error("Mark want-to-read error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Unmark a book (remove from both lists): POST /api/unmark ──
+app.post("/api/unmark", async (req, res) => {
+  try {
+    const { uid, book_id } = req.body;
+
+    if (!uid || !book_id) {
+      return res.status(400).json({ error: "uid and book_id are required" });
+    }
+
+    await pool.execute(
+      `DELETE FROM read_books WHERE uid = ? AND book_id = ?`,
+      [uid, book_id]
+    );
+    await pool.execute(
+      `DELETE FROM want_to_read WHERE uid = ? AND book_id = ?`,
+      [uid, book_id]
+    );
+
+    res.json({ message: "Book unmarked" });
+  } catch (error) {
+    console.error("Unmark error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Get book status for a user: GET /api/book/:id/status?uid= ──
+app.get("/api/book/:id/status", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const uid = req.query.uid;
+
+    if (!uid) {
+      return res.json({ status: null, rating: null });
+    }
+
+    const [readRows] = await pool.execute(
+      `SELECT 1 FROM read_books WHERE uid = ? AND book_id = ?`,
+      [uid, bookId]
+    );
+
+    const [wantRows] = await pool.execute(
+      `SELECT 1 FROM want_to_read WHERE uid = ? AND book_id = ?`,
+      [uid, bookId]
+    );
+
+    const [ratingRows] = await pool.execute(
+      `SELECT rating FROM ratings WHERE uid = ? AND book_id = ?`,
+      [uid, bookId]
+    );
+
+    let status = null;
+    if (readRows.length > 0) status = "read";
+    else if (wantRows.length > 0) status = "want-to-read";
+
+    res.json({
+      status,
+      rating: ratingRows.length > 0 ? ratingRows[0].rating : null,
+    });
+  } catch (error) {
+    console.error("Book status error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Recommendations: GET /api/recommendations/:id ──
+app.get("/api/recommendations/:id", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+
+    // Get the book's primary genre
+    const [books] = await pool.execute(
+      `SELECT primary_genre FROM books WHERE book_id = ?`,
+      [bookId]
+    );
+
+    if (books.length === 0) {
+      return res.status(404).json({ error: "Book not found" });
+    }
+
+    const genre = books[0].primary_genre;
+
+    if (!genre) {
+      return res.json([]);
+    }
+
+    // Get 5 random books from the same genre, excluding the current book
+    const [rows] = await pool.execute(
+      `SELECT book_id, title, author, cover_image_url, average_rating
+       FROM books
+       WHERE primary_genre = ? AND book_id != ?
+       ORDER BY RAND()
+       LIMIT 5`,
+      [genre, bookId]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Recommendations error:", error);
     res.status(500).json({ error: "Server error" });
   }
 });

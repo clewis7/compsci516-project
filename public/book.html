@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>betterreads - Book Details</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <a href="/" class="back-link">Back to Search</a>
+      <div id="book-detail" class="book-detail">
+        <p>Loading...</p>
+      </div>
+    </div>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const bookId = params.get("id");
+
+      async function loadBook() {
+        const detailEl = document.getElementById("book-detail");
+
+        if (!bookId) {
+          detailEl.innerHTML = "<p>No book selected.</p>";
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/book/${bookId}`);
+          if (!res.ok) throw new Error("Book not found");
+          const book = await res.json();
+
+          // Also fetch user ratings
+          const ratingsRes = await fetch(`/api/book/${bookId}/ratings`);
+          const ratingsData = await ratingsRes.json();
+
+          detailEl.innerHTML = `
+            <div class="book-layout">
+              <div class="book-cover">
+                ${book.cover_image_url
+                  ? `<img src="${book.cover_image_url}" alt="${book.title}" />`
+                  : `<div class="no-cover">No Cover</div>`}
+              </div>
+              <div class="book-info">
+                <h1>${book.title}</h1>
+                <h2>by ${book.author || "Unknown"}</h2>
+                <p class="book-meta">
+                  ${book.primary_genre ? `<span class="genre">${book.primary_genre}</span>` : ""}
+                  ${book.pages ? `<span>${book.pages} pages</span>` : ""}
+                  ${book.isbn ? `<span>ISBN: ${book.isbn}</span>` : ""}
+                </p>
+                <p class="book-rating">
+                  Average Rating: ${book.average_rating || "N/A"} / 5
+                  ${ratingsData.num_ratings > 0
+                    ? `<br>User Ratings: ${ratingsData.avg_rating} / 5 (${ratingsData.num_ratings} ratings)`
+                    : ""}
+                </p>
+                ${book.genres && book.genres.length > 0
+                  ? `<p class="book-genres">Genres: ${book.genres.join(", ")}</p>`
+                  : ""}
+                <p class="book-description">${book.description || "No description available."}</p>
+
+                <div class="action-buttons">
+                  <button id="btn-read" class="action-btn" onclick="markAs('read')">Mark as Read</button>
+                  <button id="btn-want" class="action-btn" onclick="markAs('want-to-read')">Mark as Want-to-Read</button>
+                </div>
+                <p id="status-message"></p>
+
+                <div class="rate-section">
+                  <h3>Rate this book</h3>
+                  <div class="star-rating" id="star-rating">
+                    <span class="star" data-value="1">&#9733;</span>
+                    <span class="star" data-value="2">&#9733;</span>
+                    <span class="star" data-value="3">&#9733;</span>
+                    <span class="star" data-value="4">&#9733;</span>
+                    <span class="star" data-value="5">&#9733;</span>
+                  </div>
+                  <p id="rate-message"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="recommendations-section">
+              <h3>You might also like</h3>
+              <div id="recommendations" class="recommendations-grid">Loading...</div>
+            </div>
+          `;
+
+          // Set up star rating clicks
+          document.querySelectorAll(".star").forEach((star) => {
+            star.addEventListener("mouseenter", () => {
+              const val = parseInt(star.dataset.value);
+              highlightStars(val);
+            });
+            star.addEventListener("mouseleave", () => {
+              highlightStars(currentRating);
+            });
+            star.addEventListener("click", () => {
+              submitRating(parseInt(star.dataset.value));
+            });
+          });
+
+          // Load user's status for this book
+          loadStatus();
+
+          // Load recommendations
+          loadRecommendations();
+        } catch (error) {
+          detailEl.innerHTML = "<p>Error loading book details.</p>";
+          console.error(error);
+        }
+      }
+
+      let currentRating = 0;
+
+      function highlightStars(count) {
+        document.querySelectorAll(".star").forEach((star) => {
+          const val = parseInt(star.dataset.value);
+          star.classList.toggle("active", val <= count);
+        });
+      }
+
+      async function submitRating(rating) {
+        const msgEl = document.getElementById("rate-message");
+
+        // For now, use a default user (uid=1). This will be replaced when login is implemented.
+        const uid = 1;
+
+        try {
+          const res = await fetch("/api/rate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid, book_id: parseInt(bookId), rating }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            msgEl.textContent = `You rated this book ${rating}/5! (Added to your Read list)`;
+            msgEl.style.color = "green";
+            highlightStars(rating);
+            // Reload to update rating display
+            setTimeout(() => loadBook(), 1000);
+          } else {
+            msgEl.textContent = data.error || "Failed to submit rating.";
+            msgEl.style.color = "red";
+          }
+        } catch (error) {
+          msgEl.textContent = "Error submitting rating.";
+          msgEl.style.color = "red";
+        }
+      }
+
+      let currentStatus = null;
+
+      async function loadStatus() {
+        const uid = 1;
+        try {
+          const res = await fetch(`/api/book/${bookId}/status?uid=${uid}`);
+          const data = await res.json();
+
+          currentStatus = data.status;
+
+          const statusEl = document.getElementById("status-message");
+          const btnRead = document.getElementById("btn-read");
+          const btnWant = document.getElementById("btn-want");
+
+          btnRead.classList.remove("active-btn");
+          btnWant.classList.remove("active-btn");
+
+          if (data.status === "read") {
+            statusEl.textContent = "You have read this book";
+            statusEl.style.color = "#2a5db0";
+            btnRead.classList.add("active-btn");
+          } else if (data.status === "want-to-read") {
+            statusEl.textContent = "On your want-to-read list";
+            statusEl.style.color = "#2a5db0";
+            btnWant.classList.add("active-btn");
+          } else {
+            statusEl.textContent = "";
+          }
+
+          if (data.rating) {
+            currentRating = data.rating;
+            highlightStars(data.rating);
+          }
+        } catch (err) {
+          console.error("Error loading status:", err);
+        }
+      }
+
+      async function markAs(type) {
+        const uid = 1;
+        const statusEl = document.getElementById("status-message");
+
+        // If clicking the already-active button, unmark it
+        if (currentStatus === type) {
+          try {
+            const res = await fetch("/api/unmark", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uid, book_id: parseInt(bookId) }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+              statusEl.textContent = "Book removed from your list";
+              statusEl.style.color = "green";
+              loadStatus();
+            }
+          } catch (error) {
+            console.error("Unmark error:", error);
+          }
+          return;
+        }
+
+        const endpoint = type === "read" ? "/api/mark-read" : "/api/mark-want-to-read";
+
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid, book_id: parseInt(bookId) }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            statusEl.textContent = data.message;
+            statusEl.style.color = "green";
+            loadStatus();
+          } else {
+            statusEl.textContent = data.error || "Failed to update.";
+            statusEl.style.color = "red";
+          }
+        } catch (error) {
+          console.error("Mark error:", error);
+        }
+      }
+
+      async function loadRecommendations() {
+        const recEl = document.getElementById("recommendations");
+        try {
+          const res = await fetch(`/api/recommendations/${bookId}`);
+          const books = await res.json();
+
+          if (!books.length) {
+            recEl.innerHTML = "<p>No recommendations available.</p>";
+            return;
+          }
+
+          recEl.innerHTML = books
+            .map(
+              (b) => `
+              <a href="book.html?id=${b.book_id}" class="rec-card">
+                ${b.cover_image_url
+                  ? `<img src="${b.cover_image_url}" alt="${b.title}" />`
+                  : `<div class="no-cover-small">No Cover</div>`}
+                <p class="rec-title">${b.title}</p>
+                <p class="rec-author">${b.author || "Unknown"}</p>
+              </a>`
+            )
+            .join("");
+        } catch (err) {
+          recEl.innerHTML = "<p>Error loading recommendations.</p>";
+        }
+      }
+
+      loadBook();
+    </script>
+  </body>
+</html>
