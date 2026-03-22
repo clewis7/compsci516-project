@@ -353,6 +353,112 @@ app.get("/api/recommendations/:id", async (req, res) => {
   }
 });
 
+// ── Register: POST /api/register ──
+app.post("/api/register", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "username and password are required" });
+    }
+
+    const [existing] = await pool.execute(
+      "SELECT uid FROM users WHERE username = ?",
+      [username]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({ error: "Username already exists" });
+    }
+
+    const [result] = await pool.execute(
+      "INSERT INTO users (username, password) VALUES (?, ?)",
+      [username, password]
+    );
+
+    res.json({ uid: result.insertId, username });
+  } catch (error) {
+    console.error("Register error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Login: POST /api/login ──
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "username and password are required" });
+    }
+
+    const [rows] = await pool.execute(
+      "SELECT uid, username FROM users WHERE username = ? AND password = ?",
+      [username, password]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    res.json({ uid: rows[0].uid, username: rows[0].username });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── User Library: GET /api/user/:uid/library ──
+app.get("/api/user/:uid/library", async (req, res) => {
+  try {
+    const uid = req.params.uid;
+
+    const [readRows] = await pool.execute(
+      `SELECT b.book_id, b.title, b.author, b.cover_image_url
+       FROM read_books rb
+       JOIN books b ON rb.book_id = b.book_id
+       WHERE rb.uid = ?
+       ORDER BY b.title ASC`,
+      [uid]
+    );
+
+    const [wantRows] = await pool.execute(
+      `SELECT b.book_id, b.title, b.author, b.cover_image_url
+       FROM want_to_read wtr
+       JOIN books b ON wtr.book_id = b.book_id
+       WHERE wtr.uid = ?
+       ORDER BY b.title ASC`,
+      [uid]
+    );
+
+    res.json({ read_books: readRows, want_to_read: wantRows });
+  } catch (error) {
+    console.error("User library error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── User Ratings: GET /api/user/:uid/ratings ──
+app.get("/api/user/:uid/ratings", async (req, res) => {
+  try {
+    const uid = req.params.uid;
+
+    const [rows] = await pool.execute(
+      `SELECT b.book_id, b.title, r.rating
+       FROM ratings r
+       JOIN books b ON r.book_id = b.book_id
+       WHERE r.uid = ?
+       ORDER BY b.title ASC`,
+      [uid]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error("User ratings error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });

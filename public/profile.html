@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>betterreads - My Profile</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>My Profile</h1>
+
+      <div class="book-detail" style="max-width: 1000px;">
+        <div class="book-layout" style="flex-direction: column; gap: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="user-name" style="margin: 0;">Hello!</h2>
+            <button id="logout-btn" class="action-btn">Logout</button>
+          </div>
+
+          <section>
+            <h3 style="margin: 0 0 10px 0;">Books I've Read</h3>
+            <div id="read-list" style="display: flex; flex-wrap: wrap; gap: 16px;"></div>
+            <p id="read-empty" style="margin: 10px 0 0 0; color: #777;"></p>
+          </section>
+
+          <section>
+            <h3 style="margin: 0 0 10px 0;">Want to Read</h3>
+            <div id="want-list" style="display: flex; flex-wrap: wrap; gap: 16px;"></div>
+            <p id="want-empty" style="margin: 10px 0 0 0; color: #777;"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script src="profile.js"></script>
+  </body>
+</html>

@@ -8,6 +8,7 @@
   </head>
   <body>
     <div class="container">
+      <div id="auth-header"></div>
       <a href="/" class="back-link">Back to Search</a>
       <div id="book-detail" class="book-detail">
         <p>Loading...</p>
@@ -17,6 +18,43 @@
     <script>
       const params = new URLSearchParams(window.location.search);
       const bookId = params.get("id");
+
+      function renderAuthHeader() {
+        const headerEl = document.getElementById("auth-header");
+        if (!headerEl) return;
+
+        const uid = localStorage.getItem("uid");
+        const username = localStorage.getItem("username");
+
+        headerEl.innerHTML = "";
+
+        if (uid) {
+          const text = document.createElement("span");
+          text.textContent = "Logged in as ";
+
+          const link = document.createElement("a");
+          link.href = "profile.html";
+          link.textContent = username || "User";
+
+          const logoutBtn = document.createElement("button");
+          logoutBtn.className = "action-btn";
+          logoutBtn.textContent = "Logout";
+          logoutBtn.addEventListener("click", () => {
+            localStorage.removeItem("uid");
+            localStorage.removeItem("username");
+            window.location.href = "index.html";
+          });
+
+          headerEl.appendChild(text);
+          headerEl.appendChild(link);
+          headerEl.appendChild(logoutBtn);
+        } else {
+          const link = document.createElement("a");
+          link.href = "login.html";
+          link.textContent = "Login / Register";
+          headerEl.appendChild(link);
+        }
+      }
 
       async function loadBook() {
         const detailEl = document.getElementById("book-detail");
@@ -124,8 +162,12 @@
       async function submitRating(rating) {
         const msgEl = document.getElementById("rate-message");
 
-        // For now, use a default user (uid=1). This will be replaced when login is implemented.
-        const uid = 1;
+        const uid = localStorage.getItem("uid");
+        if (!uid) {
+          msgEl.textContent = "Please login to rate or save books.";
+          msgEl.style.color = "red";
+          return;
+        }
 
         try {
           const res = await fetch("/api/rate", {
@@ -155,7 +197,14 @@
       let currentStatus = null;
 
       async function loadStatus() {
-        const uid = 1;
+        const uid = localStorage.getItem("uid");
+        if (!uid) {
+          currentStatus = null;
+          highlightStars(0);
+          const statusEl = document.getElementById("status-message");
+          if (statusEl) statusEl.textContent = "";
+          return;
+        }
         try {
           const res = await fetch(`/api/book/${bookId}/status?uid=${uid}`);
           const data = await res.json();
@@ -191,8 +240,14 @@
       }
 
       async function markAs(type) {
-        const uid = 1;
+        const uid = localStorage.getItem("uid");
         const statusEl = document.getElementById("status-message");
+
+        if (!uid) {
+          statusEl.textContent = "Please login to rate or save books.";
+          statusEl.style.color = "red";
+          return;
+        }
 
         // If clicking the already-active button, unmark it
         if (currentStatus === type) {
@@ -266,6 +321,7 @@
         }
       }
 
+      renderAuthHeader();
       loadBook();
     </script>
   </body>

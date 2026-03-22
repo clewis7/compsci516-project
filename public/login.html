@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>betterreads - Login</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>betterreads</h1>
+
+      <div class="book-detail" style="max-width: 520px;">
+        <div class="book-layout" style="flex-direction: column; gap: 16px;">
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="toggle-login" class="action-btn active-btn">Login</button>
+            <button id="toggle-register" class="action-btn">Register</button>
+          </div>
+
+          <form id="auth-form" style="display: flex; flex-direction: column; gap: 12px;">
+            <label style="font-size: 14px; color: #555;">Username</label>
+            <input id="username" type="text" autocomplete="username" required />
+
+            <label style="font-size: 14px; color: #555;">Password</label>
+            <input id="password" type="password" autocomplete="current-password" required />
+
+            <button id="submit-btn" class="action-btn" type="submit">Login</button>
+          </form>
+
+          <p id="message" style="margin: 0; font-size: 14px;"></p>
+        </div>
+      </div>
+    </div>
+
+    <script src="login.js"></script>
+  </body>
+</html>
