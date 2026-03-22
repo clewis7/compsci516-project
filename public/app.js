@@ -50,3 +50,42 @@ document.getElementById("searchInput").addEventListener("keydown", (event) => {
     searchBooks();
   }
 });
+
+function renderAuthHeader() {
+  const headerEl = document.getElementById("auth-header");
+  if (!headerEl) return;
+
+  const uid = localStorage.getItem("uid");
+  const username = localStorage.getItem("username");
+
+  headerEl.innerHTML = "";
+
+  if (uid) {
+    const text = document.createElement("span");
+    text.textContent = "Logged in as ";
+
+    const link = document.createElement("a");
+    link.href = "profile.html";
+    link.textContent = username || "User";
+
+    const logoutBtn = document.createElement("button");
+    logoutBtn.className = "action-btn";
+    logoutBtn.textContent = "Logout";
+    logoutBtn.addEventListener("click", () => {
+      localStorage.removeItem("uid");
+      localStorage.removeItem("username");
+      window.location.href = "index.html";
+    });
+
+    headerEl.appendChild(text);
+    headerEl.appendChild(link);
+    headerEl.appendChild(logoutBtn);
+  } else {
+    const link = document.createElement("a");
+    link.href = "login.html";
+    link.textContent = "Login / Register";
+    headerEl.appendChild(link);
+  }
+}
+
+renderAuthHeader();
