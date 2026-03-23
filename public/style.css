@@ -269,9 +269,23 @@ h1 {
   margin-top: 30px;
 }
 
+.recommendations-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
 .recommendations-section h3 {
   font-size: 22px;
-  margin-bottom: 15px;
+  margin: 0;
+}
+
+.recommendations-subtitle {
+  margin: 0 0 15px;
+  font-size: 14px;
+  color: #555;
 }
 
 .recommendations-grid {
@@ -327,8 +341,140 @@ h1 {
 .rec-author {
   font-size: 12px;
   color: #777;
-  margin: 0;
+  margin: 0 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rec-reason {
+  font-size: 12px;
+  color: #2a5db0;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.rec-rating {
+  font-size: 12px;
+  color: #555;
+  margin: 8px 0 0;
+}
+
+/* ── Reading Challenges ── */
+
+.challenge-section {
+  border-top: 1px solid #e5e5e5;
+  padding-top: 10px;
+}
+
+.challenge-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.challenge-note {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.challenge-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.challenge-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8f9fc;
+  border: 1px solid #d8deec;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.challenge-form h4 {
+  margin: 0 0 6px;
+}
+
+.challenge-form label {
+  font-size: 14px;
+  color: #555;
+}
+
+.challenge-form input,
+.challenge-form textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid #c2cad7;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.challenge-message,
+.challenge-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.challenge-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.challenge-card,
+.challenge-detail-card {
+  background: white;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.challenge-card h5,
+.challenge-detail-card h4,
+.challenge-detail-card h5 {
+  margin: 0 0 8px;
+}
+
+.challenge-card-meta,
+.challenge-card-code,
+.challenge-card-description,
+.challenge-detail-meta,
+.challenge-detail-description {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #555;
+}
+
+.challenge-detail {
+  margin-top: 10px;
+}
+
+.challenge-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.challenge-detail-columns {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr;
+  gap: 24px;
+}
+
+.challenge-member-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #333;
+}
+
+.challenge-book-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
 }

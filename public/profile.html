@@ -28,6 +28,51 @@
             <div id="want-list" style="display: flex; flex-wrap: wrap; gap: 16px;"></div>
             <p id="want-empty" style="margin: 10px 0 0 0; color: #777;"></p>
           </section>
+
+          <section class="challenge-section">
+            <div class="challenge-header">
+              <h3 style="margin: 0;">Reading Challenges</h3>
+              <p class="challenge-note">
+                Create a shared challenge from your current Want to Read list, then invite other users to join with a code.
+              </p>
+            </div>
+
+            <div class="challenge-actions">
+              <form id="challenge-form" class="challenge-form">
+                <h4>Create a challenge</h4>
+                <label for="challenge-name">Challenge name</label>
+                <input id="challenge-name" type="text" maxlength="150" placeholder="Spring fantasy challenge" required />
+
+                <label for="challenge-description">Description</label>
+                <textarea
+                  id="challenge-description"
+                  rows="3"
+                  maxlength="255"
+                  placeholder="Reading together before finals week"
+                ></textarea>
+
+                <button class="action-btn" type="submit">Create from Want to Read</button>
+              </form>
+
+              <form id="join-challenge-form" class="challenge-form">
+                <h4>Join a challenge</h4>
+                <label for="challenge-code">Invite code</label>
+                <input id="challenge-code" type="text" maxlength="20" placeholder="ABC123" required />
+
+                <button class="action-btn" type="submit">Join challenge</button>
+              </form>
+            </div>
+
+            <p id="challenge-message" class="challenge-message"></p>
+
+            <div>
+              <h4 style="margin: 0 0 10px 0;">Your challenges</h4>
+              <div id="challenge-list" class="challenge-list"></div>
+              <p id="challenge-empty" class="challenge-empty"></p>
+            </div>
+
+            <div id="challenge-detail" class="challenge-detail"></div>
+          </section>
         </div>
       </div>
     </div>

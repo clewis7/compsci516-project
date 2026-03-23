@@ -120,7 +120,15 @@
             </div>
 
             <div class="recommendations-section">
-              <h3>You might also like</h3>
+              <div class="recommendations-header">
+                <h3>You might also like</h3>
+                <button id="refresh-recommendations" class="action-btn" type="button">
+                  Refresh recommendations
+                </button>
+              </div>
+              <p class="recommendations-subtitle">
+                Recommendations are based on shared genres first, then average rating.
+              </p>
               <div id="recommendations" class="recommendations-grid">Loading...</div>
             </div>
           `;
@@ -143,6 +151,9 @@
           loadStatus();
 
           // Load recommendations
+          document
+            .getElementById("refresh-recommendations")
+            .addEventListener("click", () => loadRecommendations());
           loadRecommendations();
         } catch (error) {
           detailEl.innerHTML = "<p>Error loading book details.</p>";
@@ -295,8 +306,16 @@
 
       async function loadRecommendations() {
         const recEl = document.getElementById("recommendations");
+        const refreshBtn = document.getElementById("refresh-recommendations");
         const uid = localStorage.getItem("uid");
         const query = uid ? `?uid=${encodeURIComponent(uid)}` : "";
+
+        recEl.innerHTML = "<p>Loading recommendations...</p>";
+        if (refreshBtn) {
+          refreshBtn.disabled = true;
+          refreshBtn.textContent = "Refreshing...";
+        }
+
         try {
           const res = await fetch(`/api/recommendations/${bookId}${query}`);
           if (!res.ok) {
@@ -318,11 +337,18 @@
                   : `<div class="no-cover-small">No Cover</div>`}
                 <p class="rec-title">${b.title}</p>
                 <p class="rec-author">${b.author || "Unknown"}</p>
+                <p class="rec-reason">${b.reason || "Recommended because it is similar to this book."}</p>
+                <p class="rec-rating">Average rating: ${b.average_rating ? Number(b.average_rating).toFixed(2) : "N/A"} / 5</p>
               </a>`
             )
             .join("");
         } catch (err) {
           recEl.innerHTML = "<p>Error loading recommendations.</p>";
+        } finally {
+          if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = "Refresh recommendations";
+          }
         }
       }
 

@@ -61,12 +61,25 @@ Can then see rendered version of website at: http://localhost:3000
 
 `GET /api/recommendations/:id`
 
-- Recommendations are based on the selected book's `primary_genre`.
+- Recommendations are based on overlapping genres for the selected book.
 - Results exclude the selected book itself.
-- Books are ranked by higher `average_rating`, then `title`, then `book_id` for stable demo output.
+- Candidates are ranked by shared genre overlap, then `average_rating`, and the UI can refresh through a weighted sample of strong matches.
 - The route returns up to 5 books with the current recommendation card fields.
 - Optional query param: `uid=<user id>`
   - When present, books already saved in the user's `read_books` or `want_to_read` lists are excluded.
+
+### Reading Challenges
+
+- `POST /api/challenges`
+  - Creates a reading challenge from the logged-in user's current Want to Read list.
+- `POST /api/challenges/join`
+  - Joins a challenge by invite code.
+- `GET /api/challenges/user/:uid`
+  - Lists the challenges a user belongs to.
+- `GET /api/challenges/:id?uid=<user id>`
+  - Returns challenge details, including members and shared books.
+
+Challenge tables are created automatically when the server starts, so the feature works with the existing MySQL seed data.
 
 ## Load dataset into MySQL (Docker)
 

@@ -7,6 +7,8 @@ const PORT = 3001;
 const SEARCH_FIELDS = new Set(["title", "author", "genre"]);
 const SEARCH_RESULT_LIMIT = 8;
 const RECOMMENDATION_LIMIT = 5;
+const RECOMMENDATION_POOL_LIMIT = 15;
+const CHALLENGE_CODE_LENGTH = 6;
 
 const pool = mysql.createPool({
   host: "127.0.0.1",
@@ -31,6 +33,127 @@ function sendServerError(res, context, error) {
 
 function getTrimmedQueryParam(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function generateInviteCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < CHALLENGE_CODE_LENGTH; i += 1) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+async function createUniqueInviteCode(conn) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const inviteCode = generateInviteCode();
+    const [rows] = await conn.execute(
+      "SELECT challenge_id FROM reading_challenges WHERE invite_code = ?",
+      [inviteCode]
+    );
+
+    if (rows.length === 0) {
+      return inviteCode;
+    }
+  }
+
+  throw new Error("Unable to generate a unique invite code");
+}
+
+async function ensureDatabaseTables() {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS reading_challenges (
+      challenge_id INT NOT NULL AUTO_INCREMENT,
+      name VARCHAR(150) NOT NULL,
+      description VARCHAR(255) DEFAULT NULL,
+      invite_code VARCHAR(20) NOT NULL,
+      created_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (challenge_id),
+      UNIQUE KEY invite_code (invite_code),
+      CONSTRAINT fk_reading_challenges_user
+        FOREIGN KEY (created_by) REFERENCES users(uid) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS challenge_members (
+      challenge_id INT NOT NULL,
+      uid INT NOT NULL,
+      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (challenge_id, uid),
+      CONSTRAINT fk_challenge_members_challenge
+        FOREIGN KEY (challenge_id) REFERENCES reading_challenges(challenge_id) ON DELETE CASCADE,
+      CONSTRAINT fk_challenge_members_user
+        FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS challenge_books (
+      challenge_id INT NOT NULL,
+      book_id INT NOT NULL,
+      added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (challenge_id, book_id),
+      CONSTRAINT fk_challenge_books_challenge
+        FOREIGN KEY (challenge_id) REFERENCES reading_challenges(challenge_id) ON DELETE CASCADE,
+      CONSTRAINT fk_challenge_books_book
+        FOREIGN KEY (book_id) REFERENCES books(book_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+function buildRecommendationReason(matchedGenres, averageRating) {
+  const overlapText =
+    matchedGenres.length === 1
+      ? `Shares the ${matchedGenres[0]} genre with this book`
+      : `Shares genres with this book: ${matchedGenres.join(", ")}`;
+  return overlapText;
+}
+
+function pickRecommendations(candidateRows, limit) {
+  const pool = candidateRows
+    .slice(0, RECOMMENDATION_POOL_LIMIT)
+    .map((row, index) => {
+      const normalizedRating = row.average_rating ? Number(row.average_rating) : 0;
+      return {
+        ...row,
+        randomWeight:
+          row.overlap_count * 100 +
+          normalizedRating * 10 +
+          Math.max(RECOMMENDATION_POOL_LIMIT - index, 1),
+      };
+    });
+
+  const selected = [];
+
+  while (pool.length > 0 && selected.length < limit) {
+    const totalWeight = pool.reduce((sum, candidate) => sum + candidate.randomWeight, 0);
+    let threshold = Math.random() * totalWeight;
+    let chosenIndex = 0;
+
+    for (let i = 0; i < pool.length; i += 1) {
+      threshold -= pool[i].randomWeight;
+      if (threshold <= 0) {
+        chosenIndex = i;
+        break;
+      }
+    }
+
+    const [picked] = pool.splice(chosenIndex, 1);
+    selected.push(picked);
+  }
+
+  return selected.sort((left, right) => {
+    const ratingDiff = (Number(right.average_rating) || 0) - (Number(left.average_rating) || 0);
+    if (right.overlap_count !== left.overlap_count) {
+      return right.overlap_count - left.overlap_count;
+    }
+    if (ratingDiff !== 0) {
+      return ratingDiff;
+    }
+    return left.title.localeCompare(right.title) || left.book_id - right.book_id;
+  });
 }
 
 app.get("/api/search", async (req, res) => {
@@ -346,7 +469,7 @@ app.get("/api/recommendations/:id", async (req, res) => {
     }
 
     const [books] = await pool.execute(
-      `SELECT primary_genre FROM books WHERE book_id = ?`,
+      `SELECT book_id, primary_genre FROM books WHERE book_id = ?`,
       [bookId]
     );
 
@@ -354,19 +477,42 @@ app.get("/api/recommendations/:id", async (req, res) => {
       return res.status(404).json({ error: "Book not found" });
     }
 
-    const genre = books[0].primary_genre;
+    const [genreRows] = await pool.execute(
+      `SELECT DISTINCT g.genre_name
+       FROM genres g
+       JOIN book_genres bg ON g.genre_id = bg.genre_id
+       JOIN books b ON b.hardcover_id = bg.hardcover_id
+       WHERE b.book_id = ?
+       ORDER BY g.genre_name ASC`,
+      [bookId]
+    );
 
-    if (!genre) {
+    const selectedGenres = genreRows.map((row) => row.genre_name);
+    if (selectedGenres.length === 0 && books[0].primary_genre) {
+      selectedGenres.push(books[0].primary_genre);
+    }
+
+    if (selectedGenres.length === 0) {
       return res.json([]);
     }
 
+    const genrePlaceholders = selectedGenres.map(() => "?").join(", ");
     let sql = `
-      SELECT b.book_id, b.title, b.author, b.cover_image_url, b.average_rating
+      SELECT
+        b.book_id,
+        b.title,
+        b.author,
+        b.cover_image_url,
+        b.average_rating,
+        COUNT(DISTINCT g.genre_id) AS overlap_count,
+        GROUP_CONCAT(DISTINCT g.genre_name ORDER BY g.genre_name SEPARATOR '||') AS matched_genres
       FROM books b
-      WHERE b.primary_genre = ?
+      JOIN book_genres bg ON b.hardcover_id = bg.hardcover_id
+      JOIN genres g ON bg.genre_id = g.genre_id
+      WHERE g.genre_name IN (${genrePlaceholders})
         AND b.book_id != ?
     `;
-    const params = [genre, bookId];
+    const params = [...selectedGenres, bookId];
 
     if (uid) {
       sql += `
@@ -385,13 +531,42 @@ app.get("/api/recommendations/:id", async (req, res) => {
     }
 
     sql += `
-      ORDER BY b.average_rating DESC, b.title ASC, b.book_id ASC
-      LIMIT ${RECOMMENDATION_LIMIT}
+      GROUP BY b.book_id, b.title, b.author, b.cover_image_url, b.average_rating
+      ORDER BY overlap_count DESC, b.average_rating DESC, b.title ASC, b.book_id ASC
+      LIMIT ${RECOMMENDATION_POOL_LIMIT}
     `;
 
     const [rows] = await pool.execute(sql, params);
 
-    res.json(rows);
+    const rankedRows = rows.sort((left, right) => {
+      if (right.overlap_count !== left.overlap_count) {
+        return right.overlap_count - left.overlap_count;
+      }
+
+      const ratingDiff = (Number(right.average_rating) || 0) - (Number(left.average_rating) || 0);
+      if (ratingDiff !== 0) {
+        return ratingDiff;
+      }
+
+      return left.title.localeCompare(right.title) || left.book_id - right.book_id;
+    });
+
+    const recommendations = pickRecommendations(rankedRows, RECOMMENDATION_LIMIT).map((row) => {
+      const matchedGenres = row.matched_genres ? row.matched_genres.split("||") : [];
+
+      return {
+        book_id: row.book_id,
+        title: row.title,
+        author: row.author,
+        cover_image_url: row.cover_image_url,
+        average_rating: row.average_rating,
+        matched_genres: matchedGenres,
+        overlap_count: row.overlap_count,
+        reason: buildRecommendationReason(matchedGenres, row.average_rating),
+      };
+    });
+
+    res.json(recommendations);
   } catch (error) {
     sendServerError(res, "Recommendations error", error);
   }
@@ -503,6 +678,240 @@ app.get("/api/user/:uid/ratings", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// ── Create reading challenge from a user's want-to-read list ──
+app.post("/api/challenges", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.body.uid);
+    const name = getTrimmedQueryParam(req.body.name);
+    const description = getTrimmedQueryParam(req.body.description).slice(0, 255) || null;
+
+    if (!uid) {
+      return res.status(400).json({ error: "uid is required" });
+    }
+
+    if (!name) {
+      return res.status(400).json({ error: "Challenge name is required" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [userRows] = await conn.execute("SELECT uid FROM users WHERE uid = ?", [uid]);
+      if (userRows.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const [wantRows] = await conn.execute(
+        "SELECT book_id FROM want_to_read WHERE uid = ? ORDER BY book_id ASC",
+        [uid]
+      );
+
+      if (wantRows.length === 0) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: "Add at least one book to your Want to Read list before creating a challenge",
+        });
+      }
+
+      const inviteCode = await createUniqueInviteCode(conn);
+      const [result] = await conn.execute(
+        `INSERT INTO reading_challenges (name, description, invite_code, created_by)
+         VALUES (?, ?, ?, ?)`,
+        [name, description, inviteCode, uid]
+      );
+
+      const challengeId = result.insertId;
+
+      await conn.execute(
+        "INSERT INTO challenge_members (challenge_id, uid) VALUES (?, ?)",
+        [challengeId, uid]
+      );
+
+      await conn.execute(
+        `INSERT INTO challenge_books (challenge_id, book_id)
+         SELECT ?, book_id
+         FROM want_to_read
+         WHERE uid = ?`,
+        [challengeId, uid]
+      );
+
+      await conn.commit();
+      res.status(201).json({
+        challenge_id: challengeId,
+        invite_code: inviteCode,
+        name,
+        description,
+        book_count: wantRows.length,
+      });
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    sendServerError(res, "Create challenge error", error);
+  }
 });
+
+// ── Join a reading challenge by invite code ──
+app.post("/api/challenges/join", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.body.uid);
+    const inviteCode = getTrimmedQueryParam(req.body.invite_code).toUpperCase();
+
+    if (!uid || !inviteCode) {
+      return res.status(400).json({ error: "uid and invite_code are required" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [challengeRows] = await conn.execute(
+        `SELECT challenge_id, name
+         FROM reading_challenges
+         WHERE invite_code = ?`,
+        [inviteCode]
+      );
+
+      if (challengeRows.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: "Challenge not found" });
+      }
+
+      const challenge = challengeRows[0];
+      const [result] = await conn.execute(
+        `INSERT IGNORE INTO challenge_members (challenge_id, uid)
+         VALUES (?, ?)`,
+        [challenge.challenge_id, uid]
+      );
+
+      await conn.commit();
+      res.json({
+        challenge_id: challenge.challenge_id,
+        name: challenge.name,
+        joined: result.affectedRows > 0,
+      });
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    sendServerError(res, "Join challenge error", error);
+  }
+});
+
+// ── List challenges for a user ──
+app.get("/api/challenges/user/:uid", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.params.uid);
+
+    if (!uid) {
+      return res.status(400).json({ error: "uid must be a positive integer" });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT
+         c.challenge_id,
+         c.name,
+         c.description,
+         c.invite_code,
+         c.created_at,
+         CASE WHEN c.created_by = ? THEN 1 ELSE 0 END AS is_creator,
+         (SELECT COUNT(*) FROM challenge_members cm WHERE cm.challenge_id = c.challenge_id) AS member_count,
+         (SELECT COUNT(*) FROM challenge_books cb WHERE cb.challenge_id = c.challenge_id) AS book_count
+       FROM reading_challenges c
+       JOIN challenge_members cm ON cm.challenge_id = c.challenge_id
+       WHERE cm.uid = ?
+       ORDER BY c.created_at DESC, c.challenge_id DESC`,
+      [uid, uid]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    sendServerError(res, "List challenges error", error);
+  }
+});
+
+// ── Challenge detail for a member ──
+app.get("/api/challenges/:id", async (req, res) => {
+  try {
+    const challengeId = parsePositiveInt(req.params.id);
+    const uid = parsePositiveInt(req.query.uid);
+
+    if (!challengeId || !uid) {
+      return res.status(400).json({ error: "challenge id and uid are required" });
+    }
+
+    const [membershipRows] = await pool.execute(
+      `SELECT 1
+       FROM challenge_members
+       WHERE challenge_id = ? AND uid = ?`,
+      [challengeId, uid]
+    );
+
+    if (membershipRows.length === 0) {
+      return res.status(403).json({ error: "You must join this challenge before viewing it" });
+    }
+
+    const [challengeRows] = await pool.execute(
+      `SELECT
+         c.challenge_id,
+         c.name,
+         c.description,
+         c.invite_code,
+         c.created_at,
+         u.username AS creator_name
+       FROM reading_challenges c
+       JOIN users u ON c.created_by = u.uid
+       WHERE c.challenge_id = ?`,
+      [challengeId]
+    );
+
+    if (challengeRows.length === 0) {
+      return res.status(404).json({ error: "Challenge not found" });
+    }
+
+    const [memberRows] = await pool.execute(
+      `SELECT u.uid, u.username
+       FROM challenge_members cm
+       JOIN users u ON cm.uid = u.uid
+       WHERE cm.challenge_id = ?
+       ORDER BY u.username ASC`,
+      [challengeId]
+    );
+
+    const [bookRows] = await pool.execute(
+      `SELECT b.book_id, b.title, b.author, b.cover_image_url
+       FROM challenge_books cb
+       JOIN books b ON cb.book_id = b.book_id
+       WHERE cb.challenge_id = ?
+       ORDER BY b.title ASC`,
+      [challengeId]
+    );
+
+    res.json({
+      challenge: challengeRows[0],
+      members: memberRows,
+      books: bookRows,
+    });
+  } catch (error) {
+    sendServerError(res, "Challenge detail error", error);
+  }
+});
+
+ensureDatabaseTables()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Database setup error:", error);
+    process.exit(1);
+  });
