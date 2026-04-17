@@ -1015,3 +1015,354 @@ h1 {
   margin: 0;
   font-size: 14px;
 }
+
+/* ── Navigation Bar ── */
+
+.site-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 52px;
+  background: #2a5db0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.nav-logo {
+  font-size: 22px;
+  font-weight: bold;
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+
+.nav-logo:hover {
+  opacity: 0.85;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-profile-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.nav-profile-link:hover {
+  opacity: 0.85;
+}
+
+.nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.6);
+}
+
+.nav-logout-btn {
+  background: transparent !important;
+  border-color: rgba(255,255,255,0.6) !important;
+  color: #fff !important;
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+.nav-logout-btn:hover {
+  background: rgba(255,255,255,0.15) !important;
+}
+
+/* ── Reading Stats ── */
+
+.stats-section {
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.stat-category {
+  background: linear-gradient(135deg, #ffffff 0%, #eef3fc 100%);
+  border: 1px solid #d0ddf5;
+  border-radius: 14px;
+  padding: 0;
+  flex: 1 1 200px;
+  box-shadow: 0 2px 8px rgba(42, 93, 176, 0.08);
+  overflow: hidden;
+}
+
+.stat-category-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 10px;
+  background: linear-gradient(90deg, #2a5db0, #5b8def);
+  color: #fff;
+}
+
+.stat-category-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stat-category-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.stat-category-rows {
+  padding: 8px 0 4px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 18px;
+  border-bottom: 1px solid #eef1f8;
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}
+
+.stat-row-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a3f8f;
+  min-width: 40px;
+}
+
+.stat-row-label {
+  font-size: 13px;
+  color: #6b7a99;
+  text-align: right;
+}
+
+/* ── Annual Reading Goal ── */
+
+.goal-section {
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.goal-display {
+  margin-bottom: 14px;
+}
+
+.goal-summary {
+  font-size: 15px;
+  color: #333;
+  margin: 0 0 6px 0;
+}
+
+.goal-progress-bar {
+  width: 100%;
+  max-width: 400px;
+  height: 14px;
+  background: #dce5f7;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  background: #2a5db0;
+  border-radius: 7px;
+  transition: width 0.4s ease;
+}
+
+.goal-pct {
+  font-size: 13px;
+  color: #555;
+  margin: 4px 0 0;
+}
+
+.goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 300px;
+  font-size: 14px;
+  color: #555;
+}
+
+.goal-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Reading Progress (currently reading cards) ── */
+
+.currently-reading-card {
+  width: 120px;
+  text-align: center;
+}
+
+.progress-wrap {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.book-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #dce5f7;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.book-progress-fill {
+  height: 100%;
+  background: #2a5db0;
+  border-radius: 3px;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.progress-page-input,
+.progress-date-input {
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.progress-msg {
+  font-size: 11px;
+}
+
+/* ── Date Tracker on Book Page ── */
+
+.date-tracker {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border: 1px solid #c5d5f5;
+  border-radius: 8px;
+}
+
+.date-tracker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.date-tracker-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #444;
+}
+
+.date-tracker-row input[type="date"],
+.date-tracker-row input[type="number"] {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* ── Spoiler Badge & Toggle ── */
+
+.spoiler-badge {
+  background: #f5a623;
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+.spoiler-toggle-btn {
+  font-size: 13px;
+  padding: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.spoiler-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* ── Edit Review Modal ── */
+
+.edit-review-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.edit-review-box {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  width: 480px;
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.edit-review-box h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.edit-review-box select {
+  padding: 6px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.review-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}

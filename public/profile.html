@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <nav id="site-nav" class="site-nav"></nav>
     <div class="container">
       <a href="/" class="back-link">Back to Search</a>
       <h1>My Profile</h1>
@@ -29,6 +30,24 @@
               <button id="save-profile-icon-btn" class="action-btn" type="button">Update Profile Icon</button>
               <p id="profile-icon-message"></p>
             </div>
+          </section>
+
+          <section class="stats-section" id="stats-section">
+            <h3 style="margin: 0 0 10px 0;">Reading Stats</h3>
+            <div id="stats-grid" class="stats-grid"></div>
+          </section>
+
+          <section class="goal-section" id="goal-section">
+            <h3 style="margin: 0 0 6px 0;">Annual Reading Goal</h3>
+            <div id="goal-display" class="goal-display"></div>
+            <form id="goal-form" class="goal-form">
+              <label for="goal-input">Set goal for <span id="goal-year"></span></label>
+              <div class="goal-form-row">
+                <input id="goal-input" type="number" min="1" max="999" placeholder="e.g. 24" style="width:80px;" required />
+                <button class="action-btn" type="submit">Save</button>
+              </div>
+              <p id="goal-message" class="profile-review-message"></p>
+            </form>
           </section>
 
           <section class="social-section">
@@ -183,6 +202,7 @@
       </div>
     </div>
 
+    <script src="nav.js"></script>
     <script src="profile.js"></script>
   </body>
 </html>

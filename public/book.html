@@ -7,21 +7,21 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <nav id="site-nav" class="site-nav"></nav>
     <div class="container">
-      <div id="auth-header"></div>
       <a href="/" class="back-link">Back to Search</a>
       <div id="book-detail" class="book-detail">
         <p>Loading...</p>
       </div>
     </div>
 
+    <script src="nav.js"></script>
     <script>
       const params = new URLSearchParams(window.location.search);
       const bookId = params.get("id");
 
       function renderStars(rating) {
         if (!rating) return "No rating";
-
         const safeRating = Math.max(0, Math.min(5, Number(rating) || 0));
         let stars = "";
         for (let i = 1; i <= 5; i++) {
@@ -39,52 +39,6 @@
           .replace(/'/g, "&#39;");
       }
 
-      function renderAuthHeader() {
-        const headerEl = document.getElementById("auth-header");
-        if (!headerEl) return;
-
-        const uid = localStorage.getItem("uid");
-        const username = localStorage.getItem("username");
-        const profileIconUrl = localStorage.getItem("profile_icon_url");
-
-        headerEl.innerHTML = "";
-
-        if (uid) {
-          const link = document.createElement("a");
-          link.href = "profile.html";
-          link.className = "auth-user-link";
-
-          const icon = document.createElement("img");
-          icon.className = "auth-user-icon";
-          icon.src = profileIconUrl || "/assets/icons/icon1.png";
-          icon.alt = "Profile icon";
-
-          const name = document.createElement("span");
-          name.textContent = username || "User";
-
-          link.appendChild(icon);
-          link.appendChild(name);
-
-          const logoutBtn = document.createElement("button");
-          logoutBtn.className = "action-btn";
-          logoutBtn.textContent = "Logout";
-          logoutBtn.addEventListener("click", () => {
-            localStorage.removeItem("uid");
-            localStorage.removeItem("username");
-            localStorage.removeItem("profile_icon_url");
-            window.location.href = "index.html";
-          });
-
-          headerEl.appendChild(link);
-          headerEl.appendChild(logoutBtn);
-        } else {
-          const link = document.createElement("a");
-          link.href = "login.html";
-          link.textContent = "Login / Register";
-          headerEl.appendChild(link);
-        }
-      }
-
       async function loadBook() {
         const detailEl = document.getElementById("book-detail");
 
@@ -98,18 +52,15 @@
           if (!res.ok) throw new Error("Book not found");
           const book = await res.json();
 
-          // Also fetch user ratings
           const ratingsRes = await fetch(`/api/book/${bookId}/ratings`);
           const ratingsData = await ratingsRes.json();
 
           detailEl.innerHTML = `
             <div class="book-layout">
               <div class="book-cover">
-                ${
-                  book.cover_image_url
-                    ? `<img src="${book.cover_image_url}" alt="${book.title}" />`
-                    : `<div class="no-cover">No Cover</div>`
-                }
+                ${book.cover_image_url
+                  ? `<img src="${book.cover_image_url}" alt="${book.title}" />`
+                  : `<div class="no-cover">No Cover</div>`}
               </div>
               <div class="book-info">
                 <h1>${book.title}</h1>
@@ -121,17 +72,13 @@
                 </p>
                 <p class="book-rating">
                   Average Rating: ${book.average_rating || "N/A"} / 5
-                  ${
-                    ratingsData.num_ratings > 0
-                      ? `<br>User Ratings: ${ratingsData.avg_rating} / 5 (${ratingsData.num_ratings} ratings)`
-                      : ""
-                  }
+                  ${ratingsData.num_ratings > 0
+                    ? `<br>User Ratings: ${ratingsData.avg_rating} / 5 (${ratingsData.num_ratings} ratings)`
+                    : ""}
                 </p>
-                ${
-                  book.genres && book.genres.length > 0
-                    ? `<p class="book-genres">Genres: ${book.genres.join(", ")}</p>`
-                    : ""
-                }
+                ${book.genres && book.genres.length > 0
+                  ? `<p class="book-genres">Genres: ${book.genres.join(", ")}</p>`
+                  : ""}
                 <p class="book-description">${book.description || "No description available."}</p>
 
                 <div class="action-buttons">
@@ -140,6 +87,8 @@
                   <button id="btn-want" class="action-btn" onclick="markAs('want-to-read')">Mark as Want-to-Read</button>
                 </div>
                 <p id="status-message"></p>
+
+                <div id="date-tracker" class="date-tracker" style="display:none;"></div>
 
                 <div class="rate-section">
                   <h3>Rate this book</h3>
@@ -156,28 +105,26 @@
             </div>
 
             <div class="review-section">
-                  <h3>Reviews</h3>
-
-                  <div class="leave-review">
-                    <h4>Leave a comment or review</h4>
-                    <textarea
-                      id="review-text"
-                      class="review-textarea"
-                      rows="4"
-                      placeholder="Write your review here..."
-                    ></textarea>
-                    <div class="review-actions">
-                      <button id="submit-review-btn" class="action-btn" type="button">
-                        Submit
-                      </button>
-                    </div>
-                    <p id="review-message"></p>
-                  </div>
-
-                  <div id="reviews-list" class="reviews-list">
-                    <p>Loading reviews...</p>
-                  </div>
+              <h3>Reviews</h3>
+              <div class="leave-review">
+                <h4>Leave a comment or review</h4>
+                <textarea
+                  id="review-text"
+                  class="review-textarea"
+                  rows="4"
+                  placeholder="Write your review here..."
+                ></textarea>
+                <div class="review-actions">
+                  <label class="spoiler-label">
+                    <input type="checkbox" id="spoiler-checkbox" />
+                    Contains spoilers
+                  </label>
+                  <button id="submit-review-btn" class="action-btn" type="button">Submit</button>
                 </div>
+                <p id="review-message"></p>
+              </div>
+              <div id="reviews-list" class="reviews-list">
+                <p>Loading reviews...</p>
               </div>
             </div>
 
@@ -195,78 +142,52 @@
             </div>
           `;
 
-          // Set up star rating clicks
           document.querySelectorAll(".star").forEach((star) => {
-            star.addEventListener("mouseenter", () => {
-              const val = parseInt(star.dataset.value);
-              highlightStars(val);
-            });
-            star.addEventListener("mouseleave", () => {
-              highlightStars(currentRating);
-            });
-            star.addEventListener("click", () => {
-              submitRating(parseInt(star.dataset.value));
-            });
+            star.addEventListener("mouseenter", () => highlightStars(parseInt(star.dataset.value)));
+            star.addEventListener("mouseleave", () => highlightStars(currentRating));
+            star.addEventListener("click", () => submitRating(parseInt(star.dataset.value)));
           });
 
-          // Load user's status for this book
+          document.getElementById("submit-review-btn").addEventListener("click", submitReview);
+          document.getElementById("refresh-recommendations").addEventListener("click", () => loadRecommendations());
+
           loadStatus();
-
-          const reviewBtn = document.getElementById("submit-review-btn");
-          if (reviewBtn) {
-            reviewBtn.addEventListener("click", submitReview);
-          }
-
-          // Load user's status for this book
-          loadStatus();
-
-          // Load reviews
           loadReviews();
-
-          // Load recommendations
-          document
-            .getElementById("refresh-recommendations")
-            .addEventListener("click", () => loadRecommendations());
           loadRecommendations();
         } catch (error) {
-          detailEl.innerHTML = "<p>Error loading book details.</p>";
+          document.getElementById("book-detail").innerHTML = "<p>Error loading book details.</p>";
           console.error(error);
         }
       }
 
       let currentRating = 0;
+      let currentStatus = null;
 
       function highlightStars(count) {
         document.querySelectorAll(".star").forEach((star) => {
-          const val = parseInt(star.dataset.value);
-          star.classList.toggle("active", val <= count);
+          star.classList.toggle("active", parseInt(star.dataset.value) <= count);
         });
       }
 
       async function submitRating(rating) {
         const msgEl = document.getElementById("rate-message");
-
         const uid = localStorage.getItem("uid");
         if (!uid) {
           msgEl.textContent = "Please login to rate or save books.";
           msgEl.style.color = "red";
           return;
         }
-
         try {
           const res = await fetch("/api/rate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uid, book_id: parseInt(bookId), rating }),
           });
-
           const data = await res.json();
-
           if (res.ok) {
-            msgEl.textContent = `You rated this book ${rating}/5! (Added to your Read list)`;
+            msgEl.textContent = `You rated this book ${rating}/5!`;
             msgEl.style.color = "green";
             highlightStars(rating);
-            // Reload to update rating display
             setTimeout(() => loadBook(), 1000);
           } else {
             msgEl.textContent = data.error || "Failed to submit rating.";
@@ -283,21 +204,19 @@
         const username = localStorage.getItem("username");
         const msgEl = document.getElementById("review-message");
         const textEl = document.getElementById("review-text");
+        const spoilerEl = document.getElementById("spoiler-checkbox");
 
         if (!uid) {
           msgEl.textContent = "Please login to leave a review.";
           msgEl.style.color = "red";
           return;
         }
-
         const review = textEl.value.trim();
-
         if (!review) {
           msgEl.textContent = "Please write a review before submitting.";
           msgEl.style.color = "red";
           return;
         }
-
         try {
           const res = await fetch("/api/review", {
             method: "POST",
@@ -308,15 +227,15 @@
               book_id: parseInt(bookId),
               rating: currentRating || null,
               review,
+              is_spoiler: spoilerEl && spoilerEl.checked ? 1 : 0,
             }),
           });
-
           const data = await res.json();
-
           if (res.ok) {
             msgEl.textContent = "Review submitted successfully.";
             msgEl.style.color = "green";
             textEl.value = "";
+            if (spoilerEl) spoilerEl.checked = false;
             loadReviews();
           } else {
             msgEl.textContent = data.error || "Failed to submit review.";
@@ -332,90 +251,191 @@
         const reviewsEl = document.getElementById("reviews-list");
         if (!reviewsEl) return;
         const uid = localStorage.getItem("uid");
-
         reviewsEl.innerHTML = "<p>Loading reviews...</p>";
 
         try {
           const query = uid ? `?uid=${encodeURIComponent(uid)}` : "";
           const res = await fetch(`/api/book/${bookId}/reviews${query}`);
           if (!res.ok) throw new Error("Failed to load reviews");
-
           const reviews = await res.json();
 
           if (!reviews.length) {
-            reviewsEl.innerHTML =
-              "<p>No reviews yet. Be the first to leave one.</p>";
+            reviewsEl.innerHTML = "<p>No reviews yet. Be the first to leave one.</p>";
             return;
           }
 
-          reviewsEl.innerHTML = reviews
-            .map(
-              (r) => `
-              <div class="review-card">
-                <div class="review-header">
-                  <a class="review-user profile-link" href="profile.html?uid=${encodeURIComponent(r.uid)}"><img class="user-icon-small" src="${escapeHtml(r.profile_icon_url || "/assets/icons/icon1.png")}" alt="${escapeHtml(r.username || "Anonymous")} icon" onerror="this.onerror=null;this.src='/assets/icons/icon1.png';" />${escapeHtml(r.username || "Anonymous")}</a>
-                  <span class="review-stars">${renderStars(r.rating)}</span>
-                </div>
-                <p class="review-body">${escapeHtml(r.review)}</p>
-                <div class="activity-actions">
-                  <button class="action-btn review-like-btn" type="button" data-review-id="${r.review_id}" data-liked="${r.liked_by_me ? "true" : "false"}">
-                    ${r.liked_by_me ? "Unlike" : "Like"} (${r.like_count || 0})
-                  </button>
-                </div>
-                <div class="activity-comments">
-                  ${(r.comments || [])
-                    .map(
-                      (comment) =>
-                        `<p class="activity-comment">${escapeHtml(comment.username || "User")}: ${escapeHtml(comment.comment)}</p>`,
-                    )
-                    .join("")}
-                </div>
-                <form class="activity-comment-form review-comment-form" data-review-id="${r.review_id}">
-                  <input type="text" placeholder="Write a comment" maxlength="500" />
-                  <button class="action-btn" type="submit">Comment</button>
-                </form>
-              </div>
-            `,
-            )
-            .join("");
+          reviewsEl.innerHTML = "";
+          reviews.forEach((r) => reviewsEl.appendChild(buildReviewCard(r, uid)));
 
-          document.querySelectorAll(".review-like-btn").forEach((button) => {
-            button.addEventListener("click", () => {
-              toggleReviewLike(button.dataset.reviewId, button.dataset.liked === "true");
+          reviewsEl.querySelectorAll(".review-like-btn").forEach((btn) => {
+            btn.addEventListener("click", () => toggleReviewLike(btn.dataset.reviewId, btn.dataset.liked === "true"));
+          });
+          reviewsEl.querySelectorAll(".review-comment-form").forEach((form) => {
+            form.addEventListener("submit", async (e) => {
+              e.preventDefault();
+              await addReviewComment(form.dataset.reviewId, form.querySelector("input").value.trim());
             });
           });
-
-          document.querySelectorAll(".review-comment-form").forEach((form) => {
-            form.addEventListener("submit", async (event) => {
-              event.preventDefault();
-              const input = form.querySelector("input");
-              await addReviewComment(form.dataset.reviewId, input.value.trim());
+          reviewsEl.querySelectorAll(".review-delete-btn").forEach((btn) => {
+            btn.addEventListener("click", () => deleteReview(btn.dataset.reviewId));
+          });
+          reviewsEl.querySelectorAll(".review-edit-btn").forEach((btn) => {
+            btn.addEventListener("click", () => openEditReview(btn.dataset.reviewId, btn.dataset.review, btn.dataset.rating, btn.dataset.spoiler));
+          });
+          reviewsEl.querySelectorAll(".spoiler-toggle-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const body = document.getElementById(`spoiler-body-${btn.dataset.reviewId}`);
+              if (body) {
+                const hidden = body.style.display === "none";
+                body.style.display = hidden ? "" : "none";
+                btn.textContent = hidden ? "Hide spoiler" : "Show spoiler";
+              }
             });
           });
         } catch (error) {
           reviewsEl.innerHTML = "<p>Error loading reviews.</p>";
-          console.error("Error loading reviews:", error);
         }
+      }
+
+      function buildReviewCard(r, currentUid) {
+        const card = document.createElement("div");
+        card.className = "review-card";
+
+        const isOwner = currentUid && String(r.uid) === String(currentUid);
+
+        const headerHtml = `
+          <div class="review-header">
+            <a class="review-user profile-link" href="profile.html?uid=${encodeURIComponent(r.uid)}">
+              <img class="user-icon-small" src="${escapeHtml(r.profile_icon_url || "/assets/icons/icon1.png")}"
+                alt="${escapeHtml(r.username || "Anonymous")} icon"
+                onerror="this.onerror=null;this.src='/assets/icons/icon1.png';" />
+              ${escapeHtml(r.username || "Anonymous")}
+            </a>
+            <span class="review-stars">${renderStars(r.rating)}</span>
+            ${r.is_spoiler ? '<span class="spoiler-badge">Spoiler</span>' : ""}
+            ${isOwner ? `
+              <button class="action-btn review-edit-btn" type="button"
+                data-review-id="${r.review_id}"
+                data-review="${escapeHtml(r.review)}"
+                data-rating="${r.rating || ""}"
+                data-spoiler="${r.is_spoiler ? "1" : "0"}">Edit</button>
+              <button class="action-btn review-delete-btn" type="button" data-review-id="${r.review_id}">Delete</button>
+            ` : ""}
+          </div>`;
+
+        let bodyHtml;
+        if (r.is_spoiler) {
+          bodyHtml = `
+            <button class="spoiler-toggle-btn action-btn" type="button" data-review-id="${r.review_id}">Show spoiler</button>
+            <p class="review-body" id="spoiler-body-${r.review_id}" style="display:none;">${escapeHtml(r.review)}</p>`;
+        } else {
+          bodyHtml = `<p class="review-body">${escapeHtml(r.review)}</p>`;
+        }
+
+        const commentsHtml = (r.comments || [])
+          .map((c) => `<p class="activity-comment">${escapeHtml(c.username || "User")}: ${escapeHtml(c.comment)}</p>`)
+          .join("");
+
+        card.innerHTML = `
+          ${headerHtml}
+          ${bodyHtml}
+          <div class="activity-actions">
+            <button class="action-btn review-like-btn" type="button" data-review-id="${r.review_id}" data-liked="${r.liked_by_me ? "true" : "false"}">
+              ${r.liked_by_me ? "Unlike" : "Like"} (${r.like_count || 0})
+            </button>
+          </div>
+          <div class="activity-comments">${commentsHtml}</div>
+          <form class="activity-comment-form review-comment-form" data-review-id="${r.review_id}">
+            <input type="text" placeholder="Write a comment" maxlength="500" />
+            <button class="action-btn" type="submit">Comment</button>
+          </form>`;
+
+        return card;
+      }
+
+      async function deleteReview(reviewId) {
+        const uid = localStorage.getItem("uid");
+        if (!uid || !confirm("Delete this review?")) return;
+        try {
+          const res = await fetch(`/api/review/${reviewId}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid: Number(uid) }),
+          });
+          if (res.ok) loadReviews();
+          else {
+            const d = await res.json();
+            alert(d.error || "Failed to delete review.");
+          }
+        } catch (e) {
+          alert("Error deleting review.");
+        }
+      }
+
+      function openEditReview(reviewId, reviewText, rating, isSpoiler) {
+        const existingModal = document.getElementById("edit-review-modal");
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement("div");
+        modal.id = "edit-review-modal";
+        modal.className = "edit-review-modal";
+        modal.innerHTML = `
+          <div class="edit-review-box">
+            <h4>Edit Review</h4>
+            <textarea id="edit-review-text" class="review-textarea" rows="4">${reviewText}</textarea>
+            <select id="edit-review-rating">
+              <option value="">No rating</option>
+              ${[1,2,3,4,5].map((v) => `<option value="${v}" ${String(rating) === String(v) ? "selected" : ""}>${v} star${v > 1 ? "s" : ""}</option>`).join("")}
+            </select>
+            <label class="spoiler-label">
+              <input type="checkbox" id="edit-spoiler-checkbox" ${isSpoiler === "1" ? "checked" : ""} />
+              Contains spoilers
+            </label>
+            <div style="display:flex;gap:10px;margin-top:10px;">
+              <button class="action-btn" id="save-edit-btn">Save</button>
+              <button class="action-btn" id="cancel-edit-btn">Cancel</button>
+            </div>
+            <p id="edit-review-msg"></p>
+          </div>`;
+
+        document.body.appendChild(modal);
+
+        document.getElementById("cancel-edit-btn").addEventListener("click", () => modal.remove());
+        document.getElementById("save-edit-btn").addEventListener("click", async () => {
+          const uid = localStorage.getItem("uid");
+          const text = document.getElementById("edit-review-text").value.trim();
+          const newRating = document.getElementById("edit-review-rating").value;
+          const newSpoiler = document.getElementById("edit-spoiler-checkbox").checked ? 1 : 0;
+          const msgEl = document.getElementById("edit-review-msg");
+
+          if (!text) { msgEl.textContent = "Review cannot be empty."; msgEl.style.color = "red"; return; }
+
+          try {
+            const res = await fetch(`/api/review/${reviewId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uid: Number(uid), review: text, rating: newRating || null, is_spoiler: newSpoiler }),
+            });
+            const data = await res.json();
+            if (res.ok) { modal.remove(); loadReviews(); }
+            else { msgEl.textContent = data.error || "Failed to save."; msgEl.style.color = "red"; }
+          } catch (e) {
+            msgEl.textContent = "Error saving review.";
+            msgEl.style.color = "red";
+          }
+        });
       }
 
       async function toggleReviewLike(reviewId, likedByMe) {
         const uid = localStorage.getItem("uid");
-        if (!uid) {
-          alert("Please login to like reviews.");
-          return;
-        }
-
-        const endpoint = likedByMe
-          ? `/api/activity/${reviewId}/unlike`
-          : `/api/activity/${reviewId}/like`;
-
+        if (!uid) { alert("Please login to like reviews."); return; }
+        const endpoint = likedByMe ? `/api/activity/${reviewId}/unlike` : `/api/activity/${reviewId}/like`;
         try {
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uid: Number(uid) }),
           });
-
           if (!res.ok) throw new Error("Failed to update like");
           await loadReviews();
         } catch (error) {
@@ -425,42 +445,31 @@
 
       async function addReviewComment(reviewId, comment) {
         const uid = localStorage.getItem("uid");
-        if (!uid) {
-          alert("Please login to comment on reviews.");
-          return;
-        }
-
+        if (!uid) { alert("Please login to comment."); return; }
         if (!comment) return;
-
         try {
           const res = await fetch(`/api/activity/${reviewId}/comments`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uid: Number(uid), comment }),
           });
-
           if (!res.ok) throw new Error("Failed to add comment");
           await loadReviews();
         } catch (error) {
-          console.error("Comment review error:", error);
+          console.error("Comment error:", error);
         }
       }
-
-      let currentStatus = null;
 
       async function loadStatus() {
         const uid = localStorage.getItem("uid");
         if (!uid) {
           currentStatus = null;
           highlightStars(0);
-          const statusEl = document.getElementById("status-message");
-          if (statusEl) statusEl.textContent = "";
           return;
         }
         try {
           const res = await fetch(`/api/book/${bookId}/status?uid=${uid}`);
           const data = await res.json();
-
           currentStatus = data.status;
 
           const statusEl = document.getElementById("status-message");
@@ -468,46 +477,117 @@
           const btnCurrent = document.getElementById("btn-current");
           const btnWant = document.getElementById("btn-want");
 
-          btnRead.classList.remove("active-btn");
-          btnCurrent.classList.remove("active-btn");
-          btnWant.classList.remove("active-btn");
+          [btnRead, btnCurrent, btnWant].forEach((b) => b && b.classList.remove("active-btn"));
 
           if (data.status === "read") {
             statusEl.textContent = "You have read this book";
             statusEl.style.color = "#2a5db0";
             btnRead.classList.add("active-btn");
+            renderDateTracker("read", null, null, data.finish_date);
           } else if (data.status === "currently-reading") {
             statusEl.textContent = "On your currently reading shelf";
             statusEl.style.color = "#2a5db0";
             btnCurrent.classList.add("active-btn");
+            renderDateTracker("currently-reading", data.current_page, data.start_date, null);
           } else if (data.status === "want-to-read") {
             statusEl.textContent = "On your want-to-read list";
             statusEl.style.color = "#2a5db0";
             btnWant.classList.add("active-btn");
+            hideDateTracker();
           } else {
             statusEl.textContent = "";
+            hideDateTracker();
           }
 
-          if (data.rating) {
-            currentRating = data.rating;
-            highlightStars(data.rating);
-          }
+          if (data.rating) { currentRating = data.rating; highlightStars(data.rating); }
         } catch (err) {
           console.error("Error loading status:", err);
+        }
+      }
+
+      function renderDateTracker(type, currentPage, startDate, finishDate) {
+        const tracker = document.getElementById("date-tracker");
+        if (!tracker) return;
+        tracker.style.display = "";
+
+        if (type === "currently-reading") {
+          tracker.innerHTML = `
+            <div class="date-tracker-row">
+              <label>Started reading:
+                <input type="date" id="start-date-input" value="${startDate || ""}" />
+              </label>
+              <label>Current page:
+                <input type="number" id="current-page-input" min="0" value="${currentPage || 0}" style="width:80px;" />
+              </label>
+              <button class="action-btn" id="save-progress-btn">Save progress</button>
+              <span id="progress-msg" style="font-size:13px;"></span>
+            </div>`;
+          document.getElementById("save-progress-btn").addEventListener("click", saveReadingProgress);
+        } else if (type === "read") {
+          tracker.innerHTML = `
+            <div class="date-tracker-row">
+              <label>Finished reading:
+                <input type="date" id="finish-date-input" value="${finishDate || ""}" />
+              </label>
+              <button class="action-btn" id="save-finish-btn">Save date</button>
+              <span id="progress-msg" style="font-size:13px;"></span>
+            </div>`;
+          document.getElementById("save-finish-btn").addEventListener("click", saveFinishDate);
+        }
+      }
+
+      function hideDateTracker() {
+        const tracker = document.getElementById("date-tracker");
+        if (tracker) { tracker.style.display = "none"; tracker.innerHTML = ""; }
+      }
+
+      async function saveReadingProgress() {
+        const uid = localStorage.getItem("uid");
+        const currentPage = document.getElementById("current-page-input")?.value;
+        const startDate = document.getElementById("start-date-input")?.value;
+        const msgEl = document.getElementById("progress-msg");
+        try {
+          const res = await fetch("/api/reading-progress", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid: Number(uid), book_id: parseInt(bookId), current_page: Number(currentPage), start_date: startDate }),
+          });
+          const data = await res.json();
+          msgEl.textContent = res.ok ? "Saved!" : (data.error || "Failed.");
+          msgEl.style.color = res.ok ? "green" : "red";
+        } catch (e) {
+          msgEl.textContent = "Error saving.";
+          msgEl.style.color = "red";
+        }
+      }
+
+      async function saveFinishDate() {
+        const uid = localStorage.getItem("uid");
+        const finishDate = document.getElementById("finish-date-input")?.value;
+        const msgEl = document.getElementById("progress-msg");
+        try {
+          const res = await fetch("/api/mark-read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid, book_id: parseInt(bookId), finish_date: finishDate }),
+          });
+          const data = await res.json();
+          msgEl.textContent = res.ok ? "Saved!" : (data.error || "Failed.");
+          msgEl.style.color = res.ok ? "green" : "red";
+        } catch (e) {
+          msgEl.textContent = "Error saving.";
+          msgEl.style.color = "red";
         }
       }
 
       async function markAs(type) {
         const uid = localStorage.getItem("uid");
         const statusEl = document.getElementById("status-message");
-
         if (!uid) {
           statusEl.textContent = "Please login to rate or save books.";
           statusEl.style.color = "red";
           return;
         }
-
-        // If clicking the already-active button, unmark it
         if (currentStatus === type) {
           try {
             const res = await fetch("/api/unmark", {
@@ -516,44 +596,21 @@
               body: JSON.stringify({ uid, book_id: parseInt(bookId) }),
             });
             const data = await res.json();
-            if (res.ok) {
-              statusEl.textContent = "Book removed from your list";
-              statusEl.style.color = "green";
-              loadStatus();
-            }
-          } catch (error) {
-            console.error("Unmark error:", error);
-          }
+            if (res.ok) { statusEl.textContent = "Book removed from your list"; statusEl.style.color = "green"; loadStatus(); }
+          } catch (error) { console.error("Unmark error:", error); }
           return;
         }
-
-        const endpoints = {
-          read: "/api/mark-read",
-          "currently-reading": "/api/mark-currently-reading",
-          "want-to-read": "/api/mark-want-to-read",
-        };
-        const endpoint = endpoints[type];
-
+        const endpoints = { read: "/api/mark-read", "currently-reading": "/api/mark-currently-reading", "want-to-read": "/api/mark-want-to-read" };
         try {
-          const res = await fetch(endpoint, {
+          const res = await fetch(endpoints[type], {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ uid, book_id: parseInt(bookId) }),
           });
-
           const data = await res.json();
-
-          if (res.ok) {
-            statusEl.textContent = data.message;
-            statusEl.style.color = "green";
-            loadStatus();
-          } else {
-            statusEl.textContent = data.error || "Failed to update.";
-            statusEl.style.color = "red";
-          }
-        } catch (error) {
-          console.error("Mark error:", error);
-        }
+          if (res.ok) { statusEl.textContent = data.message; statusEl.style.color = "green"; loadStatus(); }
+          else { statusEl.textContent = data.error || "Failed to update."; statusEl.style.color = "red"; }
+        } catch (error) { console.error("Mark error:", error); }
       }
 
       async function loadRecommendations() {
@@ -561,52 +618,28 @@
         const refreshBtn = document.getElementById("refresh-recommendations");
         const uid = localStorage.getItem("uid");
         const query = uid ? `?uid=${encodeURIComponent(uid)}` : "";
-
         recEl.innerHTML = "<p>Loading recommendations...</p>";
-        if (refreshBtn) {
-          refreshBtn.disabled = true;
-          refreshBtn.textContent = "Refreshing...";
-        }
-
+        if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing..."; }
         try {
           const res = await fetch(`/api/recommendations/${bookId}${query}`);
-          if (!res.ok) {
-            throw new Error("Recommendations request failed");
-          }
+          if (!res.ok) throw new Error("Recommendations request failed");
           const books = await res.json();
-
-          if (!books.length) {
-            recEl.innerHTML = "<p>No recommendations available.</p>";
-            return;
-          }
-
-          recEl.innerHTML = books
-            .map(
-              (b) => `
-              <a href="book.html?id=${b.book_id}" class="rec-card">
-                ${
-                  b.cover_image_url
-                    ? `<img src="${b.cover_image_url}" alt="${b.title}" />`
-                    : `<div class="no-cover-small">No Cover</div>`
-                }
-                <p class="rec-title">${b.title}</p>
-                <p class="rec-author">${b.author || "Unknown"}</p>
-                <p class="rec-reason">${b.reason || "Recommended because it is similar to this book."}</p>
-                <p class="rec-rating">Average rating: ${b.average_rating ? Number(b.average_rating).toFixed(2) : "N/A"} / 5</p>
-              </a>`,
-            )
-            .join("");
+          if (!books.length) { recEl.innerHTML = "<p>No recommendations available.</p>"; return; }
+          recEl.innerHTML = books.map((b) => `
+            <a href="book.html?id=${b.book_id}" class="rec-card">
+              ${b.cover_image_url ? `<img src="${b.cover_image_url}" alt="${b.title}" />` : `<div class="no-cover-small">No Cover</div>`}
+              <p class="rec-title">${b.title}</p>
+              <p class="rec-author">${b.author || "Unknown"}</p>
+              <p class="rec-reason">${b.reason || "Recommended because it is similar to this book."}</p>
+              <p class="rec-rating">Average rating: ${b.average_rating ? Number(b.average_rating).toFixed(2) : "N/A"} / 5</p>
+            </a>`).join("");
         } catch (err) {
           recEl.innerHTML = "<p>Error loading recommendations.</p>";
         } finally {
-          if (refreshBtn) {
-            refreshBtn.disabled = false;
-            refreshBtn.textContent = "Refresh recommendations";
-          }
+          if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = "Refresh recommendations"; }
         }
       }
 
-      renderAuthHeader();
       loadBook();
     </script>
   </body>

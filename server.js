@@ -445,6 +445,47 @@ async function ensureDatabaseSchema() {
       FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  // currently_reading: start_date + current_page
+  const hasCRStartDate = await tableColumnExists("currently_reading", "start_date");
+  if (!hasCRStartDate) {
+    await pool.execute(
+      "ALTER TABLE currently_reading ADD COLUMN start_date DATE DEFAULT NULL"
+    );
+  }
+  const hasCRCurrentPage = await tableColumnExists("currently_reading", "current_page");
+  if (!hasCRCurrentPage) {
+    await pool.execute(
+      "ALTER TABLE currently_reading ADD COLUMN current_page INT NOT NULL DEFAULT 0"
+    );
+  }
+
+  // read_books: finish_date
+  const hasRBFinishDate = await tableColumnExists("read_books", "finish_date");
+  if (!hasRBFinishDate) {
+    await pool.execute(
+      "ALTER TABLE read_books ADD COLUMN finish_date DATE DEFAULT NULL"
+    );
+  }
+
+  // reviews: is_spoiler
+  const hasReviewSpoiler = await tableColumnExists("reviews", "is_spoiler");
+  if (!hasReviewSpoiler) {
+    await pool.execute(
+      "ALTER TABLE reviews ADD COLUMN is_spoiler TINYINT(1) NOT NULL DEFAULT 0"
+    );
+  }
+
+  // reading_goals
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS reading_goals (
+      uid INT NOT NULL,
+      year SMALLINT NOT NULL,
+      goal INT NOT NULL,
+      PRIMARY KEY (uid, year),
+      FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
 }
 
 function buildRecommendationReason(matchedGenres, averageRating) {
@@ -662,20 +703,25 @@ app.get("/api/book/:id/ratings", async (req, res) => {
 // ── Mark a book as read: POST /api/mark-read ──
 app.post("/api/mark-read", async (req, res) => {
   try {
-    const { uid, book_id } = req.body;
+    const { uid, book_id, finish_date } = req.body;
 
     if (!uid || !book_id) {
       return res.status(400).json({ error: "uid and book_id are required" });
     }
 
+    const today = new Date().toISOString().slice(0, 10);
+    const resolvedFinishDate = finish_date || today;
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      // Add to read_books
+      // Add to read_books with finish_date
       await conn.execute(
-        `INSERT IGNORE INTO read_books (uid, book_id) VALUES (?, ?)`,
-        [uid, book_id],
+        `INSERT INTO read_books (uid, book_id, finish_date)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE finish_date = COALESCE(finish_date, ?)`,
+        [uid, book_id, resolvedFinishDate, resolvedFinishDate],
       );
 
       // Keep shelf status mutually exclusive.
@@ -750,19 +796,24 @@ app.post("/api/mark-want-to-read", async (req, res) => {
 // ── Mark a book as currently reading: POST /api/mark-currently-reading ──
 app.post("/api/mark-currently-reading", async (req, res) => {
   try {
-    const { uid, book_id } = req.body;
+    const { uid, book_id, start_date } = req.body;
 
     if (!uid || !book_id) {
       return res.status(400).json({ error: "uid and book_id are required" });
     }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const resolvedStartDate = start_date || today;
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
       await conn.execute(
-        `INSERT IGNORE INTO currently_reading (uid, book_id) VALUES (?, ?)`,
-        [uid, book_id],
+        `INSERT INTO currently_reading (uid, book_id, start_date, current_page)
+         VALUES (?, ?, ?, 0)
+         ON DUPLICATE KEY UPDATE start_date = COALESCE(start_date, ?)`,
+        [uid, book_id, resolvedStartDate, resolvedStartDate],
       );
 
       await conn.execute(
@@ -829,7 +880,7 @@ app.get("/api/book/:id/status", async (req, res) => {
     }
 
     const [readRows] = await pool.execute(
-      `SELECT 1 FROM read_books WHERE uid = ? AND book_id = ?`,
+      `SELECT finish_date FROM read_books WHERE uid = ? AND book_id = ?`,
       [uid, bookId],
     );
 
@@ -839,7 +890,7 @@ app.get("/api/book/:id/status", async (req, res) => {
     );
 
     const [currentRows] = await pool.execute(
-      `SELECT 1 FROM currently_reading WHERE uid = ? AND book_id = ?`,
+      `SELECT current_page, start_date FROM currently_reading WHERE uid = ? AND book_id = ?`,
       [uid, bookId],
     );
 
@@ -856,6 +907,9 @@ app.get("/api/book/:id/status", async (req, res) => {
     res.json({
       status,
       rating: ratingRows.length > 0 ? ratingRows[0].rating : null,
+      current_page: currentRows.length > 0 ? currentRows[0].current_page : null,
+      start_date: currentRows.length > 0 ? currentRows[0].start_date : null,
+      finish_date: readRows.length > 0 ? readRows[0].finish_date : null,
     });
   } catch (error) {
     console.error("Book status error:", error);
@@ -883,6 +937,7 @@ app.get("/api/book/:id/reviews", async (req, res) => {
          COALESCE(u.profile_icon_url, '/assets/icons/icon1.png') AS profile_icon_url,
          r.rating,
          r.review,
+         r.is_spoiler,
          r.created_at,
          COUNT(DISTINCT al.uid) AS like_count,
          COUNT(DISTINCT ac.comment_id) AS comment_count,
@@ -902,6 +957,7 @@ app.get("/api/book/:id/reviews", async (req, res) => {
          r.username,
          r.rating,
          r.review,
+         r.is_spoiler,
          r.created_at
        ORDER BY r.created_at DESC`,
       [viewerUid || 0, bookId],
@@ -960,6 +1016,7 @@ app.post("/api/review", async (req, res) => {
     const rating = hasRating ? Number.parseInt(req.body.rating, 10) : null;
     const username = getTrimmedQueryParam(req.body.username);
     const review = getTrimmedQueryParam(req.body.review);
+    const isSpoiler = req.body.is_spoiler ? 1 : 0;
 
     if (!uid || !bookId || !username || !review) {
       return res.status(400).json({
@@ -1016,13 +1073,14 @@ app.post("/api/review", async (req, res) => {
 
       // Save/update the review without changing the user's reading-list status.
       await conn.execute(
-        `INSERT INTO reviews (uid, book_id, username, rating, review)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO reviews (uid, book_id, username, rating, review, is_spoiler)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            username = VALUES(username),
            rating = VALUES(rating),
-           review = VALUES(review)`,
-        [uid, bookId, username, rating, review],
+           review = VALUES(review),
+           is_spoiler = VALUES(is_spoiler)`,
+        [uid, bookId, username, rating, review, isSpoiler],
       );
 
       if (hasRating) {
@@ -1606,7 +1664,7 @@ app.get("/api/user/:uid/library", async (req, res) => {
     const uid = req.params.uid;
 
     const [readRows] = await pool.execute(
-      `SELECT b.book_id, b.title, b.author, b.cover_image_url
+      `SELECT b.book_id, b.title, b.author, b.cover_image_url, rb.finish_date
        FROM read_books rb
        JOIN books b ON rb.book_id = b.book_id
        WHERE rb.uid = ?
@@ -1624,7 +1682,8 @@ app.get("/api/user/:uid/library", async (req, res) => {
     );
 
     const [currentRows] = await pool.execute(
-      `SELECT b.book_id, b.title, b.author, b.cover_image_url
+      `SELECT b.book_id, b.title, b.author, b.cover_image_url, b.pages,
+              cr.current_page, cr.start_date
        FROM currently_reading cr
        JOIN books b ON cr.book_id = b.book_id
        WHERE cr.uid = ?
@@ -1865,9 +1924,11 @@ app.get("/api/user/:uid/reviews", async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT
+         r.review_id,
          r.book_id,
          r.rating,
          r.review,
+         r.is_spoiler,
          r.created_at,
          r.updated_at,
          b.title,
@@ -2125,6 +2186,221 @@ app.get("/api/challenges/:id", async (req, res) => {
     });
   } catch (error) {
     sendServerError(res, "Challenge detail error", error);
+  }
+});
+
+// ── Reading stats: GET /api/user/:uid/stats ──
+app.get("/api/user/:uid/stats", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.params.uid);
+    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
+
+    const [[counts]] = await pool.execute(
+      `SELECT
+         (SELECT COUNT(*) FROM read_books WHERE uid = ?) AS total_read,
+         (SELECT COUNT(*) FROM currently_reading WHERE uid = ?) AS total_currently_reading,
+         (SELECT COUNT(*) FROM want_to_read WHERE uid = ?) AS total_want_to_read,
+         (SELECT COUNT(*) FROM reviews WHERE uid = ?) AS total_reviews,
+         (SELECT ROUND(AVG(rating), 2) FROM ratings WHERE uid = ?) AS avg_rating_given,
+         (SELECT COUNT(*) FROM read_books WHERE uid = ? AND YEAR(finish_date) = YEAR(CURDATE())) AS books_finished_this_year`,
+      [uid, uid, uid, uid, uid, uid],
+    );
+
+    const [genreRows] = await pool.execute(
+      `SELECT b.primary_genre, COUNT(*) AS cnt
+       FROM read_books rb
+       JOIN books b ON rb.book_id = b.book_id
+       WHERE rb.uid = ? AND b.primary_genre IS NOT NULL
+       GROUP BY b.primary_genre
+       ORDER BY cnt DESC
+       LIMIT 1`,
+      [uid],
+    );
+
+    res.json({
+      ...counts,
+      favorite_genre: genreRows.length > 0 ? genreRows[0].primary_genre : null,
+    });
+  } catch (error) {
+    sendServerError(res, "Stats error", error);
+  }
+});
+
+// ── Annual reading goal: GET /api/user/:uid/goal ──
+app.get("/api/user/:uid/goal", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.params.uid);
+    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
+
+    const year = new Date().getFullYear();
+    const [rows] = await pool.execute(
+      `SELECT goal FROM reading_goals WHERE uid = ? AND year = ?`,
+      [uid, year],
+    );
+
+    res.json({ year, goal: rows.length > 0 ? rows[0].goal : null });
+  } catch (error) {
+    sendServerError(res, "Get goal error", error);
+  }
+});
+
+// ── Set annual reading goal: POST /api/user/:uid/goal ──
+app.post("/api/user/:uid/goal", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.params.uid);
+    const goal = parsePositiveInt(req.body.goal);
+
+    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
+    if (!goal) return res.status(400).json({ error: "goal must be a positive integer" });
+
+    const year = new Date().getFullYear();
+    await pool.execute(
+      `INSERT INTO reading_goals (uid, year, goal) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE goal = ?`,
+      [uid, year, goal, goal],
+    );
+
+    res.json({ year, goal });
+  } catch (error) {
+    sendServerError(res, "Set goal error", error);
+  }
+});
+
+// ── Update reading progress: PATCH /api/reading-progress ──
+app.patch("/api/reading-progress", async (req, res) => {
+  try {
+    const uid = parsePositiveInt(req.body.uid);
+    const bookId = parsePositiveInt(req.body.book_id);
+    const currentPage = req.body.current_page !== undefined ? Number.parseInt(req.body.current_page, 10) : null;
+    const startDate = req.body.start_date ? getTrimmedQueryParam(req.body.start_date) : undefined;
+
+    if (!uid || !bookId) {
+      return res.status(400).json({ error: "uid and book_id are required" });
+    }
+
+    const [existing] = await pool.execute(
+      `SELECT 1 FROM currently_reading WHERE uid = ? AND book_id = ?`,
+      [uid, bookId],
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Book is not on your currently reading shelf" });
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (currentPage !== null && !Number.isNaN(currentPage) && currentPage >= 0) {
+      updates.push("current_page = ?");
+      params.push(currentPage);
+    }
+    if (startDate !== undefined) {
+      updates.push("start_date = ?");
+      params.push(startDate || null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    params.push(uid, bookId);
+    await pool.execute(
+      `UPDATE currently_reading SET ${updates.join(", ")} WHERE uid = ? AND book_id = ?`,
+      params,
+    );
+
+    res.json({ message: "Reading progress updated" });
+  } catch (error) {
+    sendServerError(res, "Reading progress error", error);
+  }
+});
+
+// ── Edit a review: PUT /api/review/:id ──
+app.put("/api/review/:id", async (req, res) => {
+  try {
+    const reviewId = parsePositiveInt(req.params.id);
+    const uid = parsePositiveInt(req.body.uid);
+    const review = getTrimmedQueryParam(req.body.review);
+    const hasRating =
+      req.body.rating !== undefined &&
+      req.body.rating !== null &&
+      String(req.body.rating).trim() !== "";
+    const rating = hasRating ? Number.parseInt(req.body.rating, 10) : null;
+    const isSpoiler = req.body.is_spoiler ? 1 : 0;
+
+    if (!reviewId || !uid) {
+      return res.status(400).json({ error: "review id and uid are required" });
+    }
+    if (!review) {
+      return res.status(400).json({ error: "review text is required" });
+    }
+    if (hasRating && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT uid FROM reviews WHERE review_id = ?`,
+      [reviewId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+    if (rows[0].uid !== uid) {
+      return res.status(403).json({ error: "You can only edit your own reviews" });
+    }
+
+    await pool.execute(
+      `UPDATE reviews SET review = ?, rating = ?, is_spoiler = ? WHERE review_id = ?`,
+      [review, hasRating ? rating : null, isSpoiler, reviewId],
+    );
+
+    if (hasRating) {
+      const [bookRows] = await pool.execute(
+        `SELECT book_id FROM reviews WHERE review_id = ?`,
+        [reviewId],
+      );
+      if (bookRows.length > 0) {
+        await pool.execute(
+          `INSERT INTO ratings (uid, book_id, rating) VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE rating = ?`,
+          [uid, bookRows[0].book_id, rating, rating],
+        );
+      }
+    }
+
+    res.json({ message: "Review updated" });
+  } catch (error) {
+    sendServerError(res, "Edit review error", error);
+  }
+});
+
+// ── Delete a review: DELETE /api/review/:id ──
+app.delete("/api/review/:id", async (req, res) => {
+  try {
+    const reviewId = parsePositiveInt(req.params.id);
+    const uid = parsePositiveInt(req.body.uid);
+
+    if (!reviewId || !uid) {
+      return res.status(400).json({ error: "review id and uid are required" });
+    }
+
+    const [rows] = await pool.execute(
+      `SELECT uid FROM reviews WHERE review_id = ?`,
+      [reviewId],
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+    if (rows[0].uid !== uid) {
+      return res.status(403).json({ error: "You can only delete your own reviews" });
+    }
+
+    await pool.execute(`DELETE FROM reviews WHERE review_id = ?`, [reviewId]);
+    res.json({ message: "Review deleted" });
+  } catch (error) {
+    sendServerError(res, "Delete review error", error);
   }
 });
 

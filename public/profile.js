@@ -683,7 +683,7 @@ async function loadUserReviews() {
 
     profileReviewEmptyEl.textContent = "";
     reviews.forEach((review) => {
-      profileReviewListEl.appendChild(createReviewCard(review));
+      profileReviewListEl.appendChild(createReviewCardWithActions(review));
     });
   } catch (error) {
     profileReviewEmptyEl.textContent = "Unable to load your activity right now.";
@@ -964,7 +964,7 @@ async function loadLibrary() {
     } else {
       currentEmptyEl.textContent = "";
       currentBooks.forEach((book) =>
-        currentListEl.appendChild(createBookCard(book)),
+        currentListEl.appendChild(createCurrentlyReadingCard(book)),
       );
     }
 
@@ -1099,6 +1099,322 @@ joinChallengeForm.addEventListener("submit", async (event) => {
   }
 });
 
+// ── Reading Stats ──
+async function loadStats() {
+  const statsGrid = document.getElementById("stats-grid");
+  if (!statsGrid) return;
+
+  try {
+    const res = await fetch(`/api/user/${viewedUid}/stats`);
+    const data = await res.json();
+    if (!res.ok) { statsGrid.innerHTML = "<p>Unable to load stats.</p>"; return; }
+
+    const categories = [
+      {
+        title: "My Shelf",
+        icon: "📚",
+        items: [
+          { label: "Books Read", value: data.total_read || 0 },
+          { label: "Currently Reading", value: data.total_currently_reading || 0 },
+          { label: "Want to Read", value: data.total_want_to_read || 0 },
+        ],
+      },
+      {
+        title: "Activity",
+        icon: "✍️",
+        items: [
+          { label: "Reviews Posted", value: data.total_reviews || 0 },
+          { label: "Avg Rating Given", value: data.avg_rating_given ? `${data.avg_rating_given} / 5` : "—" },
+        ],
+      },
+      {
+        title: "Insights",
+        icon: "🔍",
+        items: [
+          { label: "Favorite Genre", value: data.favorite_genre || "—" },
+          { label: "Finished This Year", value: data.books_finished_this_year || 0 },
+        ],
+      },
+    ];
+
+    statsGrid.innerHTML = categories.map((cat) => `
+      <div class="stat-category">
+        <div class="stat-category-header">
+          <span class="stat-category-icon">${cat.icon}</span>
+          <span class="stat-category-title">${cat.title}</span>
+        </div>
+        <div class="stat-category-rows">
+          ${cat.items.map((item) => `
+            <div class="stat-row">
+              <span class="stat-row-value">${item.value}</span>
+              <span class="stat-row-label">${item.label}</span>
+            </div>`).join("")}
+        </div>
+      </div>`).join("");
+  } catch (e) {
+    if (document.getElementById("stats-grid")) document.getElementById("stats-grid").innerHTML = "<p>Unable to load stats.</p>";
+  }
+}
+
+// ── Annual Reading Goal ──
+const goalForm = document.getElementById("goal-form");
+const goalInputEl = document.getElementById("goal-input");
+const goalMessageEl = document.getElementById("goal-message");
+const goalDisplayEl = document.getElementById("goal-display");
+const goalYearEl = document.getElementById("goal-year");
+
+async function loadGoal() {
+  if (!goalDisplayEl) return;
+  const year = new Date().getFullYear();
+  if (goalYearEl) goalYearEl.textContent = year;
+
+  try {
+    const [goalRes, statsRes] = await Promise.all([
+      fetch(`/api/user/${viewedUid}/goal`),
+      fetch(`/api/user/${viewedUid}/stats`),
+    ]);
+    const goalData = await goalRes.json();
+    const statsData = statsRes.ok ? await statsRes.json() : {};
+
+    const finished = statsData.books_finished_this_year || 0;
+    const goal = goalData.goal;
+
+    if (!goal) {
+      goalDisplayEl.innerHTML = isOwnProfile ? "<p style='color:#777;font-size:14px;'>No goal set for this year yet.</p>" : "<p style='color:#777;font-size:14px;'>No goal set.</p>";
+      return;
+    }
+
+    const pct = Math.min(100, Math.round((finished / goal) * 100));
+    goalDisplayEl.innerHTML = `
+      <p class="goal-summary">${finished} of ${goal} books (${year})</p>
+      <div class="goal-progress-bar">
+        <div class="goal-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <p class="goal-pct">${pct}% complete</p>`;
+    if (goalInputEl) goalInputEl.value = goal;
+  } catch (e) {
+    goalDisplayEl.innerHTML = "<p>Unable to load goal.</p>";
+  }
+}
+
+if (isOwnProfile && goalForm) {
+  goalForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const goal = parseInt(goalInputEl.value, 10);
+    if (!goal || goal < 1) { goalMessageEl.textContent = "Enter a positive number."; goalMessageEl.style.color = "red"; return; }
+    try {
+      const res = await fetch(`/api/user/${uid}/goal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        goalMessageEl.textContent = `Goal set to ${goal} books for ${data.year}.`;
+        goalMessageEl.style.color = "green";
+        loadGoal();
+      } else {
+        goalMessageEl.textContent = data.error || "Unable to save goal.";
+        goalMessageEl.style.color = "red";
+      }
+    } catch (e) {
+      goalMessageEl.textContent = "Error saving goal.";
+      goalMessageEl.style.color = "red";
+    }
+  });
+}
+
+// ── Reading Progress (currently reading) ──
+function createCurrentlyReadingCard(book) {
+  const card = document.createElement("div");
+  card.className = "currently-reading-card";
+
+  const link = document.createElement("a");
+  link.href = `book.html?id=${book.book_id}`;
+  link.style.textDecoration = "none";
+  link.style.color = "#333";
+
+  const img = document.createElement("img");
+  img.src = book.cover_image_url || "";
+  img.alt = book.title;
+  img.style.width = "100px";
+  img.style.height = "150px";
+  img.style.objectFit = "cover";
+  img.style.borderRadius = "4px";
+  img.style.border = "1px solid #ddd";
+  img.style.display = "block";
+
+  const title = document.createElement("p");
+  title.textContent = book.title;
+  title.style.fontSize = "13px";
+  title.style.fontWeight = "bold";
+  title.style.margin = "6px 0 0";
+  title.style.maxWidth = "100px";
+  title.style.overflow = "hidden";
+  title.style.textOverflow = "ellipsis";
+  title.style.whiteSpace = "nowrap";
+
+  link.appendChild(img);
+  link.appendChild(title);
+  card.appendChild(link);
+
+  if (isOwnProfile) {
+    const progressWrap = document.createElement("div");
+    progressWrap.className = "progress-wrap";
+
+    if (book.pages) {
+      const pct = book.current_page && book.pages ? Math.min(100, Math.round((book.current_page / book.pages) * 100)) : 0;
+      const bar = document.createElement("div");
+      bar.className = "book-progress-bar";
+      bar.innerHTML = `<div class="book-progress-fill" style="width:${pct}%"></div>`;
+      progressWrap.appendChild(bar);
+    }
+
+    const pageRow = document.createElement("div");
+    pageRow.className = "progress-row";
+    pageRow.innerHTML = `
+      <input type="number" min="0" max="${book.pages || 9999}" value="${book.current_page || 0}"
+        class="progress-page-input" placeholder="Page" style="width:60px;" />
+      ${book.pages ? `<span style="font-size:12px;color:#777;">/ ${book.pages}</span>` : ""}`;
+
+    const dateRow = document.createElement("div");
+    dateRow.className = "progress-row";
+    dateRow.innerHTML = `
+      <label style="font-size:12px;color:#555;">Started:
+        <input type="date" value="${book.start_date ? book.start_date.slice(0, 10) : ""}" class="progress-date-input" />
+      </label>`;
+
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "action-btn progress-save-btn";
+    saveBtn.style.fontSize = "12px";
+    saveBtn.style.padding = "4px 10px";
+    saveBtn.textContent = "Save";
+
+    const msg = document.createElement("span");
+    msg.className = "progress-msg";
+    msg.style.fontSize = "11px";
+
+    saveBtn.addEventListener("click", async () => {
+      const currentPage = pageRow.querySelector(".progress-page-input").value;
+      const startDate = dateRow.querySelector(".progress-date-input").value;
+      try {
+        const res = await fetch("/api/reading-progress", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: Number(uid), book_id: book.book_id, current_page: Number(currentPage), start_date: startDate }),
+        });
+        const data = await res.json();
+        msg.textContent = res.ok ? "Saved!" : (data.error || "Failed.");
+        msg.style.color = res.ok ? "green" : "red";
+        if (res.ok) setTimeout(() => loadStats(), 500);
+      } catch (e) {
+        msg.textContent = "Error.";
+        msg.style.color = "red";
+      }
+    });
+
+    progressWrap.appendChild(pageRow);
+    progressWrap.appendChild(dateRow);
+    progressWrap.appendChild(saveBtn);
+    progressWrap.appendChild(msg);
+    card.appendChild(progressWrap);
+  }
+
+  return card;
+}
+
+// ── Edit/Delete own reviews from profile ──
+function createReviewCardWithActions(review) {
+  const card = createReviewCard(review);
+
+  if (!isOwnProfile) return card;
+
+  const actions = document.createElement("div");
+  actions.className = "review-card-actions";
+  actions.style.marginTop = "8px";
+  actions.style.display = "flex";
+  actions.style.gap = "8px";
+
+  const editBtn = document.createElement("button");
+  editBtn.className = "action-btn";
+  editBtn.style.fontSize = "12px";
+  editBtn.style.padding = "4px 10px";
+  editBtn.textContent = "Edit";
+  editBtn.addEventListener("click", () => openProfileEditReview(review));
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "action-btn";
+  deleteBtn.style.fontSize = "12px";
+  deleteBtn.style.padding = "4px 10px";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.addEventListener("click", async () => {
+    if (!confirm("Delete this review?")) return;
+    try {
+      const res = await fetch(`/api/review/${review.review_id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: Number(uid) }),
+      });
+      if (res.ok) { await loadUserReviews(); await loadStats(); }
+      else { const d = await res.json(); alert(d.error || "Failed to delete."); }
+    } catch (e) { alert("Error deleting review."); }
+  });
+
+  actions.appendChild(editBtn);
+  actions.appendChild(deleteBtn);
+  card.appendChild(actions);
+
+  return card;
+}
+
+function openProfileEditReview(review) {
+  const existing = document.getElementById("profile-edit-modal");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "profile-edit-modal";
+  modal.className = "edit-review-modal";
+  modal.innerHTML = `
+    <div class="edit-review-box">
+      <h4>Edit Review</h4>
+      <textarea id="p-edit-text" class="review-textarea" rows="4">${review.review || ""}</textarea>
+      <select id="p-edit-rating">
+        <option value="">No rating</option>
+        ${[1,2,3,4,5].map((v) => `<option value="${v}" ${String(review.rating) === String(v) ? "selected" : ""}>${v} star${v > 1 ? "s" : ""}</option>`).join("")}
+      </select>
+      <label class="spoiler-label">
+        <input type="checkbox" id="p-edit-spoiler" ${review.is_spoiler ? "checked" : ""} />
+        Contains spoilers
+      </label>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="action-btn" id="p-save-edit">Save</button>
+        <button class="action-btn" id="p-cancel-edit">Cancel</button>
+      </div>
+      <p id="p-edit-msg" class="profile-review-message"></p>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  document.getElementById("p-cancel-edit").addEventListener("click", () => modal.remove());
+  document.getElementById("p-save-edit").addEventListener("click", async () => {
+    const text = document.getElementById("p-edit-text").value.trim();
+    const newRating = document.getElementById("p-edit-rating").value;
+    const newSpoiler = document.getElementById("p-edit-spoiler").checked ? 1 : 0;
+    const msgEl = document.getElementById("p-edit-msg");
+    if (!text) { msgEl.textContent = "Review cannot be empty."; msgEl.style.color = "red"; return; }
+    try {
+      const res = await fetch(`/api/review/${review.review_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: Number(uid), review: text, rating: newRating || null, is_spoiler: newSpoiler }),
+      });
+      const data = await res.json();
+      if (res.ok) { modal.remove(); await loadUserReviews(); }
+      else { msgEl.textContent = data.error || "Failed to save."; msgEl.style.color = "red"; }
+    } catch (e) { msgEl.textContent = "Error saving."; msgEl.style.color = "red"; }
+  });
+}
+
 applyProfileMode();
 loadProfileHeader();
 loadLibrary();
@@ -1106,6 +1422,8 @@ loadUserReviews();
 if (isOwnProfile) {
   loadSocial();
   loadChallenges();
+  loadGoal();
 }
+loadStats();
 loadActivityFeed();
 loadCurrentProfileIcon();
