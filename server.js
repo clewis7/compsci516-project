@@ -54,7 +54,10 @@ function getSearchTokens(value) {
 }
 
 function getEditDistance(left, right) {
-  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const previous = Array.from(
+    { length: right.length + 1 },
+    (_, index) => index,
+  );
 
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
     const current = [leftIndex];
@@ -105,7 +108,9 @@ function fieldMatchesSearchTerm(fieldValue, searchTerm) {
   const searchTokens = getSearchTokens(searchTerm);
 
   return searchTokens.every((searchToken) =>
-    fieldTokens.some((fieldToken) => isCloseTokenMatch(searchToken, fieldToken)),
+    fieldTokens.some((fieldToken) =>
+      isCloseTokenMatch(searchToken, fieldToken),
+    ),
   );
 }
 
@@ -132,7 +137,9 @@ function getFieldMatchScore(fieldValue, searchTerm) {
   const fieldTokens = getSearchTokens(fieldValue);
   const searchTokens = getSearchTokens(searchTerm);
   const matchingTokens = searchTokens.filter((searchToken) =>
-    fieldTokens.some((fieldToken) => isCloseTokenMatch(searchToken, fieldToken)),
+    fieldTokens.some((fieldToken) =>
+      isCloseTokenMatch(searchToken, fieldToken),
+    ),
   );
 
   if (matchingTokens.length === searchTokens.length) {
@@ -260,16 +267,27 @@ async function getRankedSearchResults(searchTerms) {
         left.book_id - right.book_id,
     )
     .slice(0, SEARCH_RESULT_LIMIT)
-    .map(({ book_id, title, author, cover_image_url, average_rating, primary_genre, genres, match_reason }) => ({
-      book_id,
-      title,
-      author,
-      cover_image_url,
-      average_rating,
-      primary_genre,
-      genres,
-      match_reason,
-    }));
+    .map(
+      ({
+        book_id,
+        title,
+        author,
+        cover_image_url,
+        average_rating,
+        primary_genre,
+        genres,
+        match_reason,
+      }) => ({
+        book_id,
+        title,
+        author,
+        cover_image_url,
+        average_rating,
+        primary_genre,
+        genres,
+        match_reason,
+      }),
+    );
 }
 
 function pickRandomProfileIconPath() {
@@ -447,16 +465,22 @@ async function ensureDatabaseSchema() {
   `);
 
   // currently_reading: start_date + current_page
-  const hasCRStartDate = await tableColumnExists("currently_reading", "start_date");
+  const hasCRStartDate = await tableColumnExists(
+    "currently_reading",
+    "start_date",
+  );
   if (!hasCRStartDate) {
     await pool.execute(
-      "ALTER TABLE currently_reading ADD COLUMN start_date DATE DEFAULT NULL"
+      "ALTER TABLE currently_reading ADD COLUMN start_date DATE DEFAULT NULL",
     );
   }
-  const hasCRCurrentPage = await tableColumnExists("currently_reading", "current_page");
+  const hasCRCurrentPage = await tableColumnExists(
+    "currently_reading",
+    "current_page",
+  );
   if (!hasCRCurrentPage) {
     await pool.execute(
-      "ALTER TABLE currently_reading ADD COLUMN current_page INT NOT NULL DEFAULT 0"
+      "ALTER TABLE currently_reading ADD COLUMN current_page INT NOT NULL DEFAULT 0",
     );
   }
 
@@ -464,7 +488,7 @@ async function ensureDatabaseSchema() {
   const hasRBFinishDate = await tableColumnExists("read_books", "finish_date");
   if (!hasRBFinishDate) {
     await pool.execute(
-      "ALTER TABLE read_books ADD COLUMN finish_date DATE DEFAULT NULL"
+      "ALTER TABLE read_books ADD COLUMN finish_date DATE DEFAULT NULL",
     );
   }
 
@@ -472,7 +496,7 @@ async function ensureDatabaseSchema() {
   const hasReviewSpoiler = await tableColumnExists("reviews", "is_spoiler");
   if (!hasReviewSpoiler) {
     await pool.execute(
-      "ALTER TABLE reviews ADD COLUMN is_spoiler TINYINT(1) NOT NULL DEFAULT 0"
+      "ALTER TABLE reviews ADD COLUMN is_spoiler TINYINT(1) NOT NULL DEFAULT 0",
     );
   }
 
@@ -849,10 +873,10 @@ app.post("/api/unmark", async (req, res) => {
       return res.status(400).json({ error: "uid and book_id are required" });
     }
 
-    await pool.execute(
-      `DELETE FROM read_books WHERE uid = ? AND book_id = ?`,
-      [uid, book_id],
-    );
+    await pool.execute(`DELETE FROM read_books WHERE uid = ? AND book_id = ?`, [
+      uid,
+      book_id,
+    ]);
     await pool.execute(
       `DELETE FROM want_to_read WHERE uid = ? AND book_id = ?`,
       [uid, book_id],
@@ -1280,7 +1304,11 @@ app.post("/api/register", async (req, res) => {
       [username, password, profileIconUrl],
     );
 
-    res.json({ uid: result.insertId, username, profile_icon_url: profileIconUrl });
+    res.json({
+      uid: result.insertId,
+      username,
+      profile_icon_url: profileIconUrl,
+    });
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ error: "Server error" });
@@ -1310,7 +1338,8 @@ app.post("/api/login", async (req, res) => {
     res.json({
       uid: rows[0].uid,
       username: rows[0].username,
-      profile_icon_url: rows[0].profile_icon_url || DEFAULT_PROFILE_ICON_PATHS[0],
+      profile_icon_url:
+        rows[0].profile_icon_url || DEFAULT_PROFILE_ICON_PATHS[0],
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -1392,7 +1421,8 @@ app.get("/api/user/:uid/profile-icon", async (req, res) => {
 
     res.json({
       uid,
-      profile_icon_url: rows[0].profile_icon_url || DEFAULT_PROFILE_ICON_PATHS[0],
+      profile_icon_url:
+        rows[0].profile_icon_url || DEFAULT_PROFILE_ICON_PATHS[0],
     });
   } catch (error) {
     sendServerError(res, "Get profile icon error", error);
@@ -1478,7 +1508,9 @@ app.post("/api/follow", async (req, res) => {
     const targetUid = parsePositiveInt(req.body.target_uid);
 
     if (!uid || !targetUid || uid === targetUid) {
-      return res.status(400).json({ error: "valid uid and target_uid are required" });
+      return res
+        .status(400)
+        .json({ error: "valid uid and target_uid are required" });
     }
 
     await pool.execute(
@@ -1500,7 +1532,9 @@ app.post("/api/unfollow", async (req, res) => {
     const targetUid = parsePositiveInt(req.body.target_uid);
 
     if (!uid || !targetUid || uid === targetUid) {
-      return res.status(400).json({ error: "valid uid and target_uid are required" });
+      return res
+        .status(400)
+        .json({ error: "valid uid and target_uid are required" });
     }
 
     await pool.execute(
@@ -1521,7 +1555,9 @@ app.post("/api/friend-request", async (req, res) => {
     const targetUid = parsePositiveInt(req.body.target_uid);
 
     if (!uid || !targetUid || uid === targetUid) {
-      return res.status(400).json({ error: "valid uid and target_uid are required" });
+      return res
+        .status(400)
+        .json({ error: "valid uid and target_uid are required" });
     }
 
     const { userOneUid, userTwoUid } = getFriendshipPair(uid, targetUid);
@@ -1544,10 +1580,16 @@ app.post("/api/friend-request", async (req, res) => {
            WHERE user_one_uid = ? AND user_two_uid = ?`,
           [userOneUid, userTwoUid],
         );
-        return res.json({ message: "Friend request accepted", status: "accepted" });
+        return res.json({
+          message: "Friend request accepted",
+          status: "accepted",
+        });
       }
 
-      return res.json({ message: "Friend request already sent", status: "pending" });
+      return res.json({
+        message: "Friend request already sent",
+        status: "pending",
+      });
     }
 
     await pool.execute(
@@ -1570,11 +1612,15 @@ app.post("/api/friend-request/respond", async (req, res) => {
     const action = getTrimmedQueryParam(req.body.action);
 
     if (!uid || !requesterUid || uid === requesterUid) {
-      return res.status(400).json({ error: "valid uid and requester_uid are required" });
+      return res
+        .status(400)
+        .json({ error: "valid uid and requester_uid are required" });
     }
 
     if (action !== "accept" && action !== "decline") {
-      return res.status(400).json({ error: "action must be accept or decline" });
+      return res
+        .status(400)
+        .json({ error: "action must be accept or decline" });
     }
 
     const { userOneUid, userTwoUid } = getFriendshipPair(uid, requesterUid);
@@ -1758,9 +1804,7 @@ app.get("/api/activity", async (req, res) => {
               )
           )
         )`;
-    const visibilityParams = targetUid
-      ? [targetUid]
-      : [uid, uid, uid, uid];
+    const visibilityParams = targetUid ? [targetUid] : [uid, uid, uid, uid];
 
     const [activities] = await pool.execute(
       `SELECT
@@ -2193,7 +2237,8 @@ app.get("/api/challenges/:id", async (req, res) => {
 app.get("/api/user/:uid/stats", async (req, res) => {
   try {
     const uid = parsePositiveInt(req.params.uid);
-    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
+    if (!uid)
+      return res.status(400).json({ error: "uid must be a positive integer" });
 
     const [[counts]] = await pool.execute(
       `SELECT
@@ -2230,7 +2275,8 @@ app.get("/api/user/:uid/stats", async (req, res) => {
 app.get("/api/user/:uid/goal", async (req, res) => {
   try {
     const uid = parsePositiveInt(req.params.uid);
-    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
+    if (!uid)
+      return res.status(400).json({ error: "uid must be a positive integer" });
 
     const year = new Date().getFullYear();
     const [rows] = await pool.execute(
@@ -2250,8 +2296,10 @@ app.post("/api/user/:uid/goal", async (req, res) => {
     const uid = parsePositiveInt(req.params.uid);
     const goal = parsePositiveInt(req.body.goal);
 
-    if (!uid) return res.status(400).json({ error: "uid must be a positive integer" });
-    if (!goal) return res.status(400).json({ error: "goal must be a positive integer" });
+    if (!uid)
+      return res.status(400).json({ error: "uid must be a positive integer" });
+    if (!goal)
+      return res.status(400).json({ error: "goal must be a positive integer" });
 
     const year = new Date().getFullYear();
     await pool.execute(
@@ -2271,8 +2319,13 @@ app.patch("/api/reading-progress", async (req, res) => {
   try {
     const uid = parsePositiveInt(req.body.uid);
     const bookId = parsePositiveInt(req.body.book_id);
-    const currentPage = req.body.current_page !== undefined ? Number.parseInt(req.body.current_page, 10) : null;
-    const startDate = req.body.start_date ? getTrimmedQueryParam(req.body.start_date) : undefined;
+    const currentPage =
+      req.body.current_page !== undefined
+        ? Number.parseInt(req.body.current_page, 10)
+        : null;
+    const startDate = req.body.start_date
+      ? getTrimmedQueryParam(req.body.start_date)
+      : undefined;
 
     if (!uid || !bookId) {
       return res.status(400).json({ error: "uid and book_id are required" });
@@ -2284,13 +2337,65 @@ app.patch("/api/reading-progress", async (req, res) => {
     );
 
     if (existing.length === 0) {
-      return res.status(404).json({ error: "Book is not on your currently reading shelf" });
+      return res
+        .status(404)
+        .json({ error: "Book is not on your currently reading shelf" });
+    }
+
+    // Validate current_page against total pages in books table
+    if (
+      currentPage !== null &&
+      !Number.isNaN(currentPage) &&
+      currentPage >= 0
+    ) {
+      const [bookRows] = await pool.execute(
+        `SELECT pages FROM books WHERE book_id = ?`,
+        [bookId],
+      );
+
+      if (bookRows.length === 0) {
+        return res.status(404).json({ error: "Book not found" });
+      }
+
+      const totalPages = bookRows[0].pages;
+
+      if (totalPages !== null && currentPage > totalPages) {
+        return res.status(400).json({
+          error: `The current page cannot be greater than total pages (${totalPages})`,
+        });
+      }
+    }
+
+    // Validate start_date is not in the future
+    if (startDate !== undefined && startDate) {
+      const providedDate = new Date(startDate);
+      const today = new Date();
+
+      // Remove time portion so only the date is compared
+      today.setHours(0, 0, 0, 0);
+      providedDate.setHours(0, 0, 0, 0);
+
+      if (Number.isNaN(providedDate.getTime())) {
+        return res.status(400).json({
+          error: "Invalid start date format",
+        });
+      }
+
+      if (providedDate > today) {
+        return res.status(400).json({
+          error: "The start date cannot be in the future",
+        });
+      }
     }
 
     const updates = [];
     const params = [];
 
-    if (currentPage !== null && !Number.isNaN(currentPage) && currentPage >= 0) {
+    if (
+      currentPage !== null &&
+      !Number.isNaN(currentPage) &&
+      currentPage >= 0
+    ) {
       updates.push("current_page = ?");
       params.push(currentPage);
     }
@@ -2347,7 +2452,9 @@ app.put("/api/review/:id", async (req, res) => {
       return res.status(404).json({ error: "Review not found" });
     }
     if (rows[0].uid !== uid) {
-      return res.status(403).json({ error: "You can only edit your own reviews" });
+      return res
+        .status(403)
+        .json({ error: "You can only edit your own reviews" });
     }
 
     await pool.execute(
@@ -2394,7 +2501,9 @@ app.delete("/api/review/:id", async (req, res) => {
       return res.status(404).json({ error: "Review not found" });
     }
     if (rows[0].uid !== uid) {
-      return res.status(403).json({ error: "You can only delete your own reviews" });
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own reviews" });
     }
 
     await pool.execute(`DELETE FROM reviews WHERE review_id = ?`, [reviewId]);
